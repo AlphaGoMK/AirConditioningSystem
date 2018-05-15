@@ -2,6 +2,10 @@
 #define CLIENT_H
 
 #include <QWidget>
+#include <winsock2.h>
+#include <stdio.h>
+#include <windows.h>
+#pragma comment(lib,"ws2_32.lib")
 
 namespace Ui {
 class Client;
@@ -25,6 +29,16 @@ public:
     explicit Client(QWidget *parent = 0);
     ~Client();
     Client(QWidget *parent = 0, int room_id);
+
+signals:
+    void sigModStatus();
+
+private slots:
+    void on_pushButton_7_clicked();
+    void updateStatus();
+
+
+
 private:
     Ui::Client *ui;
 
@@ -36,12 +50,21 @@ private:
 
     ClientState state;      //状态
     float target_tp;        //目标温度
-    float wind_speed;       //风速
+    int wind_speed;       //风速
 
     float elec;             //耗电量
     float charge;           //费用
 
+
+    SOCKET sock;
+    struct sockaddr_in serverAddress;
+
     bool recv_reg();     //接收服务端start信令，初始化Client
+
+    int send_to_server(QString msg);
+    int init_connect();
+    int close_connect();
+
 };
 
 #endif // CLIENT_H
