@@ -16,6 +16,7 @@ Client::~Client()
     delete ui;
 }
 
+// setting
 void Client::on_pushButton_7_clicked(){
     double desire_T=ui->lineEdit->text().toDouble();
     int desire_V;
@@ -32,68 +33,49 @@ void Client::on_pushButton_7_clicked(){
     send_to_server(msg);
 }
 
+
+
 int Client::init_connect(){
-    if(argc!=3){
-        printf("Usage: %s IPAddress PortNumber/n",argv[0]);
-        exit(-1);
-    }
-    //把字符串的IP地址转化为u_long
-    unsigned long ip;
-    if((ip=inet_addr(argv[1]))==INADDR_NONE){
-        printf("不合法的IP地址：%s",argv[1]);
-        exit(-1);
-    }
-    //把端口号转化成整数
-    short port;
-    if((port = atoi(argv[2]))==0){
-        printf("端口号有误！");
-        exit(-1);
-    }
-    printf("Connecting to %s:%d....../n",inet_ntoa(*(in_addr*)&ip),port);
-    WSADATA wsa;
-    //初始化套接字DLL
-    if(WSAStartup(MAKEWORD(2,2),&wsa)!=0){
-        printf("套接字初始化失败!");
-        exit(-1);
-    }
-    //创建套接字
-    if((sock=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP))==INVALID_SOCKET){
-        printf("创建套接字失败！");
-        exit(-1);
-    }
-    memset(&serverAddress,0,sizeof(sockaddr_in));
-    serverAddress.sin_family=AF_INET;
-    serverAddress.sin_addr.S_un.S_addr = ip;
-    serverAddress.sin_port = htons(port);
-    //建立和服务器的连接
-    if(connect(sock,(sockaddr*)&serverAddress,sizeof(serverAddress))==SOCKET_ERROR){
-        printf("建立连接失败！");
-        exit(-1);
-    }
 
     return 0;
 }
 
 int Client::close_connect(){
-    //清理套接字占用的资源
-    WSACleanup();
+
     return 0;
 }
 
 int Client::send_to_server(QString msg){
-    QByteArray ba=msg.toLatin1();
-    char* ch=ba.data();
-    char* buf;
-    buf=new char[100];
-    if(send(sock,ch,msg.length(),0)==SOCKET_ERROR){
-        QDebug()<<"发送数据失败！\n";
-        exit(-1);
-    }
-    int bytes;
-    if((bytes=recv(sock,buf,sizeof(buf),0))==SOCKET_ERROR){
-    QDebug()<<"接收数据失败!\n";
-    exit(-1);
-    }
-    buf[bytes]='/0';
-    QDebug()<<"Message from "<<inet_ntoa(serverAddress.sin_addr)<<":"<<buf<<"\n";
+    return 0;
+}
+
+// 暂停 发送关机命令
+void Client::on_pushButton_6_clicked()
+{
+    QString msg="close_"+to_string(room_id);
+
+    send_to_server(msg);
+
+}
+
+// 开始
+void Client::on_pushButton_5_clicked()
+{
+    target_tp=ui->lineEdit->text().toDouble();
+    if(ui->radioButton->isChecked()) wind_speed=1;
+    else if(ui->radioButton_2->isChecked()) wind_speed=2;
+    else wind_speed=3;
+
+    QString msg="r_"+to_string(room_id)+"_"+to_string(cur_tp)+"_"+tp_string(target_tp)+"_"+to_string(wind_speed);
+
+    send_to_server(msg);
+
+}
+
+void updateInfo(QString msg){
+
+}
+
+double getCur_T(){
+
 }

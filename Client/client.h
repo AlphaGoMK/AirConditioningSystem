@@ -39,6 +39,10 @@ private slots:
 
 
 
+    void on_pushButton_6_clicked();
+
+    void on_pushButton_5_clicked();
+
 private:
     Ui::Client *ui;
 
@@ -58,6 +62,7 @@ private:
 
     SOCKET sock;
     struct sockaddr_in serverAddress;
+    // my ip
 
     bool recv_reg();     //接收服务端start信令，初始化Client
 
