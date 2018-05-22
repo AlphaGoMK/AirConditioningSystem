@@ -93,6 +93,7 @@ private:
     int search_idx(QTcpSocket* tcpSocket);
 
 
+
 private slots:
     void recieve_request();        //监听端口，处理接收到的请求
 //    void send_data(int mod, QString start_id);       //发送数据

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include <QString>
+#include <qtimer.h>
 
 #pragma comment(lib,"ws2_32.lib")
 
@@ -46,7 +47,7 @@ private slots:
     void updateStatus();
     void check_inited();
     void parse_data();
-
+    void fade(); //回温
 
     void on_pushButton_5_clicked();
 
@@ -64,9 +65,11 @@ private:
     double threshold;       //温变阈值
     WorkMode mode;          //工作模式
 
+    double fade_rate;
+
     ClientState state;      //状态
     float target_tp;        //目标温度
-    int wind_speed;       //风速
+    int wind_speed;       //风速 123低中高
 
     float elec;             //耗电量
     float charge;           //费用
@@ -76,7 +79,7 @@ private:
 
     QTcpSocket * tcp_socket;
 
-
+    QTimer* fade_timer;
 
     bool recv_reg();     //接收服务端start信令，初始化Client
     int send_to_server(QString msg);
@@ -84,6 +87,7 @@ private:
     int init();
     int close_connect();
     void refresh_screen(); //刷新显示
+
 
 };
 

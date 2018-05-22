@@ -27,7 +27,7 @@ Server::Server(QWidget *parent) :
     MAXSERVE=3;
     tp_range=2.0;
     target_t=target_w=target_x=NULL;
-
+    cgtp_pere=0.1;
     tcpServer = new QTcpServer(this);
     if(!tcpServer->listen(QHostAddress::Any, 6666))
     {
@@ -55,6 +55,7 @@ Server::~Server()
 
 void Server::connecting()
 {
+    qDebug()<<"New Connection!";
     QTcpSocket* tcpSocket = tcpServer->nextPendingConnection();
 //    connect(tcpSocket, SIGNAL(disconnected()), tcpSocket, SLOT(deleteLater()));
     connect(tcpSocket, SIGNAL(readyRead()), this, SLOT(recieve_request()));
@@ -103,30 +104,30 @@ void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
         case 1:
         // 1-服务过程中回应：            a_房间号_当前房间温度_累计计费_timenow_目标温度_风速_温度变化_单价_累计电量
             x = "a";
-            x += "_" + (target_x->room_id).toUtf8();
-            x += "_" + QString("%1").arg(target_x->cur_tp);
-            x += "_" + QString("%1").arg(target_x->charge);
+            x += "_" + (room_info[idx].room_id).toUtf8();
+            x += "_" + QString("%1").arg(room_info[idx].cur_tp);
+            x += "_" + QString("%1").arg(room_info[idx].charge);
             x += "_" + QString::number(current_time.hour())+"/" +QString::number(current_time.minute())+"/"+QString::number(current_time.second());
-            x += "_" + QString("%1").arg(target_x->target_tp);
-            x += "_" + QString("%1").arg(target_x->wind_speed);
-            x += "_" + QString("%1").arg(target_x->change_tp);
-            x += "_" + QString("%1").arg(target_x->price_3s);
-            x += "_" + QString("%1").arg(target_x->elec);
+            x += "_" + QString("%1").arg(room_info[idx].target_tp);
+            x += "_" + QString("%1").arg(room_info[idx].wind_speed);
+            x += "_" + QString("%1").arg(room_info[idx].change_tp);
+            x += "_" + QString("%1").arg(room_info[idx].price_3s);
+            x += "_" + QString("%1").arg(room_info[idx].elec);
             break;
         case 2:
         // 2-关机：                    close_房间号
             x = "close";
-            x += "_" + target_x->room_id;
+            x += "_" + (room_info[idx].room_id).toUtf8();
             break;
         case 3:
         // 3-到达目标温度,待机：         sleep_房间号
             x = "sleep";
-            x += "_" + target_x->room_id;
+            x += "_" + (room_info[idx].room_id).toUtf8();
             break;
         case 4:
         // 4-等待：                    wait_房间号_序号
             x = "wait";
-            x += "_" + target_x->room_id;
+            x += "_" + (room_info[idx].room_id).toUtf8();
             x += "_" + QString::number(wait_num);
             break;
     }
@@ -291,6 +292,16 @@ void Server::compute()
             int wind_rank=room_info[i].wind_speed;
             room_info[i].elec+=temp_ecost[wind_rank-1]*T;
             room_info[i].charge+=temp_ecost[wind_rank-1]*T*Eprice;
+            room_info[i].cur_tp+=(serve_mod==0?-1:1)*(temp_ecost[wind_rank-1]*T)*cgtp_pere;
+            qDebug()<<room_info[i].target_tp-room_info[i].threshold;
+            if((serve_mod==0 && room_info[i].cur_tp<=(room_info[i].target_tp-room_info[i].threshold))||
+                    (serve_mod==1 && room_info[i].cur_tp>=(room_info[i].target_tp+room_info[i].threshold))){
+                send_data(tcpSocket_vec.at(i),3,0);
+                qDebug()<<"sleep";
+                //todo
+                room_info[i].state=SLEEP;
+                serve_num--;
+            }
         }
     }
 }
