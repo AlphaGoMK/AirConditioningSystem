@@ -133,7 +133,7 @@
      <string>降温</string>
     </property>
    </widget>
-   <widget class="QLineEdit" name="lineEdit">
+   <widget class="QLineEdit" name="get_tg_tp">
     <property name="geometry">
      <rect>
       <x>30</x>
@@ -210,8 +210,8 @@
   <widget class="QGroupBox" name="groupBox_3">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>40</y>
+     <x>20</x>
+     <y>30</y>
      <width>451</width>
      <height>411</height>
     </rect>
@@ -245,9 +245,9 @@ Connect status</string>
     <property name="geometry">
      <rect>
       <x>240</x>
-      <y>40</y>
+      <y>70</y>
       <width>181</width>
-      <height>111</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="font">
@@ -261,14 +261,17 @@ Connect status</string>
     <property name="text">
      <string>当前T</string>
     </property>
+    <property name="alignment">
+     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+    </property>
    </widget>
    <widget class="QLabel" name="label_3">
     <property name="geometry">
      <rect>
       <x>240</x>
-      <y>200</y>
+      <y>230</y>
       <width>181</width>
-      <height>181</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="font">
@@ -282,14 +285,17 @@ Connect status</string>
     <property name="text">
      <string>目标T</string>
     </property>
+    <property name="alignment">
+     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+    </property>
    </widget>
    <widget class="QLabel" name="label_4">
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>190</y>
+      <y>230</y>
       <width>81</width>
-      <height>191</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="font">
@@ -307,10 +313,10 @@ Connect status</string>
    <widget class="QLabel" name="label_5">
     <property name="geometry">
      <rect>
-      <x>120</x>
-      <y>190</y>
+      <x>130</x>
+      <y>230</y>
       <width>81</width>
-      <height>191</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="font">
@@ -323,6 +329,88 @@ Connect status</string>
     </property>
     <property name="text">
      <string>风速</string>
+    </property>
+   </widget>
+   <widget class="QLCDNumber" name="cur_tp_lcd">
+    <property name="geometry">
+     <rect>
+      <x>250</x>
+      <y>110</y>
+      <width>181</width>
+      <height>91</height>
+     </rect>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::NoFrame</enum>
+    </property>
+    <property name="smallDecimalPoint">
+     <bool>false</bool>
+    </property>
+    <property name="segmentStyle">
+     <enum>QLCDNumber::Filled</enum>
+    </property>
+   </widget>
+   <widget class="QLCDNumber" name="tg_tp_lcd">
+    <property name="geometry">
+     <rect>
+      <x>250</x>
+      <y>270</y>
+      <width>181</width>
+      <height>91</height>
+     </rect>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::NoFrame</enum>
+    </property>
+    <property name="smallDecimalPoint">
+     <bool>false</bool>
+    </property>
+    <property name="segmentStyle">
+     <enum>QLCDNumber::Filled</enum>
+    </property>
+   </widget>
+   <widget class="QLabel" name="wspd_label">
+    <property name="geometry">
+     <rect>
+      <x>130</x>
+      <y>271</y>
+      <width>81</width>
+      <height>101</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Microsoft YaHei UI</family>
+      <pointsize>30</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="chg_label">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>270</y>
+      <width>111</width>
+      <height>111</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Microsoft YaHei UI</family>
+      <pointsize>18</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>0.</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
     </property>
    </widget>
   </widget>

@@ -5,6 +5,7 @@
 #-------------------------------------------------
 
 QT       += core gui
+QT       += network
 LIBS += -lpthread libwsock32 libws2_32
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
