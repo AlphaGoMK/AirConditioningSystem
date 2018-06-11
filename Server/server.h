@@ -4,17 +4,27 @@
 #include <QDialog>
 #include <QAbstractSocket>
 #include <time.h>
-#include "client.h"
 #include <vector>
 #include <fstream>
 #include <QVector>
 #include <QMap>
+#include <queue>
 
 namespace Ui {
 class Server;
 }
 
 class QTcpSocket;
+
+enum ClientState
+{
+    BOOT,          //启动
+    CLOSE,         //关机
+    AT_SERVICE,    //正在被服务
+    SLEEP,         //服务完毕
+    WAIT           //等待
+
+};
 
 typedef struct Room{
 
@@ -35,9 +45,33 @@ typedef struct Room{
     float  price_3s;        //3s内产生的费用（我也不知道为什么设这个傻逼值）
 
     QTcpSocket* tcpSocket;   // 通信用socket
+
+    QString req_time;       //最近请求时间
+
 } room;
 
 class QTcpServer;
+
+class AirCond{
+private:
+    QVector<int> shareQ;    // store index of room in server room list at respective AC
+    int tSlot;
+    int current;    // local index
+    int timeCnt;    // round robin current service count
+
+public:
+    AirCond(int slot);
+    bool isRoundRobin;
+    bool isOn;
+    int getNext();
+    int addShare(int id);
+    int removeShare(int id);        // remove by id
+    int removeShareIdx(int idx);    // remove by index return id
+    int getNowServicing(); // global index
+    int getWillServicing();         // return id
+    bool contains(int id);
+};
+
 
 class Server : public QDialog
 {
@@ -56,14 +90,15 @@ public:
     int * get_ecost();
     QVector<room>* get_room_arr();
 
+
 private:
     Ui::Server *ui;
 
-    Client  w_queue[5];    //请求队列
     //room    room_info[5];  //房间信息数组，3s刷新  一次  张尚之改， 5->10;
     QVector<room> room_info;      //张尚之加
     int     wait_num;
     int     serve_num;
+    int     timeSlot;
 
     QTcpServer* tcpServer;
 //    QTcpSocket* tcpSocket;
@@ -91,6 +126,15 @@ private:
     QTimer* send_back_timer;     //用于定时回送数据 张尚之添加
     QTimer* cmp_log_timer;     //用于定时计算与写回数据 张尚之添加
     int search_idx(QTcpSocket* tcpSocket);
+
+    QVector<AirCond> ac;        // AC entities
+
+    std::priority_queue<room> request;
+    int addReq(int room_id,int windspeed);  // return 0-OK,-1-DELAY
+    int changeReq(int room_id,int oldSpeed,int newSpeed);
+
+
+
 
 
 

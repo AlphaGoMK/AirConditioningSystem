@@ -29,8 +29,7 @@ SOURCES += \
     server.cpp
 
 HEADERS += \
-    server.h \
-    client.h
+    server.h
 
 FORMS += \
     server.ui
