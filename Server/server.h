@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QAbstractSocket>
 #include <time.h>
+#include <QTime>
 #include <vector>
 #include <fstream>
 #include <QVector>
@@ -28,7 +29,7 @@ enum ClientState
 
 typedef struct Room{
 
-    QString room_id="";            //房间号
+    QString room_id="";     //房间号
     double t_high;          //最高温度
     double t_low;           //最低温度
     double threshold;       //温变阈值
@@ -46,15 +47,19 @@ typedef struct Room{
 
     QTcpSocket* tcpSocket;   // 通信用socket
 
-    QString req_time;       //最近请求时间
+    // ADD
+    QTime req_time;       //最近请求时间
+    int index;              //在room_info中的序号
 
 } room;
+
+
 
 class QTcpServer;
 
 class AirCond{
 private:
-    QVector<int> shareQ;    // store index of room in server room list at respective AC
+    QVector<int> shareQ;    // room_info中的序号
     int tSlot;
     int current;    // local index
     int timeCnt;    // round robin current service count
@@ -65,9 +70,9 @@ public:
     bool isOn;
     int getNext();
     int addShare(int id);
-    int removeShare(int id);        // remove by id
+    int removeShare(int id);        // remove by id(id: index in room_info. idx: index in shareQ
     int removeShareIdx(int idx);    // remove by index return id
-    int getNowServicing(); // global index
+    int getNowServicing();          // index in room_info
     int getWillServicing();         // return id
     bool contains(int id);
 };
@@ -129,10 +134,12 @@ private:
 
     QVector<AirCond> ac;        // AC entities
 
-    std::priority_queue<room> request;
-    int addReq(int room_id,int windspeed);  // return 0-OK,-1-DELAY
-    int changeReq(int room_id,int oldSpeed,int newSpeed);
+    // 返回true说明r1优先级低于r2
+    std::priority_queue<room> request;  // 请求队列
 
+    int put(int room_id,int windspeed);  // return 0-OK,-1-DELAY
+    int changeReq(int room_id,int oldSpeed,int newSpeed);
+    int updateRequestQueue();           // update req Q, return update amount
 
 
 

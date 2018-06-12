@@ -9,6 +9,13 @@
 
 QTime current_time =QTime::currentTime();
 
+bool operator < (const room &r1, const room &r2){   // 返回true说明r1优先级低于r2
+    if(r1.wind_speed==r2.wind_speed){
+        return r1.req_time>r2.req_time;
+    }
+    else return r1.wind_speed<r2.wind_speed;
+}
+
 AirCond::AirCond(int slot=1){
     tSlot=slot;
     isOn=false;
@@ -43,7 +50,7 @@ int AirCond::addShare(int id){
         isOn=true;
         current=0;
     }
-    if(isRoundRobin==false && shareQ.size()==1){    // second one
+    if(isRoundRobin==false && shareQ.length()==1){    // second one
         isRoundRobin=true;
         timeCnt=0;
         current=0;
@@ -91,14 +98,21 @@ int AirCond::getNowServicing(){
     else return -1;
 }
 
-
-bool operator<(const room&r1, const room&r2){   // 返回true说明r1优先级低于r2
-    if(r1.wind_speed==r2.wind_speed){
-        return r1.start_time>r2.start_time;
+int AirCond::getWillServicing(){
+    if(isOn&&isRoundRobin){
+        return shareQ[(current+1)%shareQ.length()];
     }
-    else return r1.wind_speed<r2.wind_speed;
+    else return -1;
 }
 
+bool AirCond::contains(int id){
+    for(QVector<int>::iterator it=shareQ.begin();it!=shareQ.end();it++){
+        if(*it==id){
+            return true;
+        }
+    }
+    return false;
+}
 
 Server::Server(QWidget *parent) :
     QDialog(parent),
@@ -439,7 +453,7 @@ float Server::get_e_price()
 }
 
 
-int Server::addReq(int room_id, int windspeed){
+int Server::put(int room_id, int windspeed){
     // 有空位直接加
     for(int i=0;i<MAXSERVE;i++){
         if(ac.at(i).isOn==false) {
@@ -477,7 +491,7 @@ int Server::addReq(int room_id, int windspeed){
         }
     }
 
-    // 全部等级高
+    // 全部等级高，加回等待队列中
     request.push(room_info[room_id]);
     return -1;
 }
@@ -488,12 +502,13 @@ int Server::addReq(int room_id, int windspeed){
 // 等待队列中一定低一个等级，不可能同级
 
 
-// 若变空，只需要轮训周围是否有RR，添加到；若未找到，则从等待队列中添加
-int Server::changeReq(int room_id, int oldSpeed, int newSpeed){
+// Down若变空，只需要轮训周围是否有RR，添加到；若未找到，则从等待队列中添加
+// Up删除，之后重新插入
+int Server::changeReq(int room_index, int oldSpeed, int newSpeed){
 
     int idx=-1;     // 空调号
     for(int i=0;i<MAXSERVE;i++){
-        if(ac[i].contains(room_id)){
+        if(ac[i].contains(room_index)){
             idx=i;
             break;
         }
@@ -501,7 +516,7 @@ int Server::changeReq(int room_id, int oldSpeed, int newSpeed){
     if(idx==-1) return -1;  // not exist
     int found=0;
     if(oldSpeed>newSpeed){    // down
-        ac[idx].removeShare(room_id);
+        ac[idx].removeShare(room_index);
         request.push(room_info[idx]);
         if(!ac[idx].isOn){
             for(int i=0;i<MAXSERVE;i++){
@@ -512,13 +527,26 @@ int Server::changeReq(int room_id, int oldSpeed, int newSpeed){
                 }
             }
             if(found==0){
-                ac[idx].addShare(request.top().room_id);
+                ac[idx].addShare(request.top().index);
                 request.pop();
             }
         }
     }
     else{
-
+        ac[idx].removeShare(room_index);
+        if(put(room_index,newSpeed)!=0) qDebug()<<"Error";
     }
+}
 
+int Server::updateRequestQueue(){
+
+    int cnt=0;
+    while(!request.empty()){
+        room tmp=request.top();
+        request.pop();
+        int state=put(tmp.index,tmp.wind_speed);
+        if(state==-1) break;
+        cnt++;
+    }
+    return cnt;
 }
