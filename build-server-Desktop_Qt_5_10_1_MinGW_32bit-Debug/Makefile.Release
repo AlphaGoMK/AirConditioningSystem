@@ -211,6 +211,8 @@ release/moc_server.cpp: ../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtWidg
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qabstractsocket.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetworkglobal.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetwork-config.h \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QTime \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdatetime.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QVector \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QMap \
 		../Server/server.h \
@@ -350,6 +352,8 @@ release/main.o: ../Server/main.cpp ../Server/server.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qabstractsocket.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetworkglobal.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetwork-config.h \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QTime \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdatetime.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QVector \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QMap \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtWidgets/QApplication \
@@ -470,6 +474,8 @@ release/server.o: ../Server/server.cpp ../Server/server.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qabstractsocket.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetworkglobal.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtNetwork/qtnetwork-config.h \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QTime \
+		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdatetime.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QVector \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/QMap \
 		ui_server.h \
@@ -529,7 +535,6 @@ release/server.o: ../Server/server.cpp ../Server/server.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qcommandlineoption.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qcommandlineparser.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qcryptographichash.h \
-		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdatetime.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdeadlinetimer.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qelapsedtimer.h \
 		../../../../QT/Qt5.10.1/5.10.1/mingw53_32/include/QtCore/qdir.h \

@@ -72,14 +72,8 @@ public:
     int removeShareIdx(int idx);    // remove by index return id
     int getNowServicing();          // index in room_info
     int getWillServicing();         // return id
-    int popback();
     bool contains(int id);
-
-    QVector<int> getShareQ();
-    int clearall(){
-        shareQ.clear();
-        return 0;
-    }
+    int popback();
 };
 
 
@@ -143,12 +137,13 @@ private:
 
     QVector<AirCond> ac;        // AC entities
 
-    std::priority_queue<room*> request;
+    std::priority_queue<room> request;
     int addReq(int room_id,int windspeed);  // return 0-OK,-1-DELAY
     int put(int room_id,int windspeed);  // return 0-OK,-1-DELAY
     int changeReq(int room_id,int oldSpeed,int newSpeed);
     int updateRequestQueue();           // update req Q, return update amount
     int balanceAC();
+
     QMap<QString, int> idToIdx;
 
 private slots:
@@ -157,8 +152,6 @@ private slots:
     void send_data(QTcpSocket* tcpSocket, int mod, QString start_id);       //发送数据, 张尚之改
     void displayError(QAbstractSocket::SocketError);
     void connecting();
-
-    void cyclePrint();
 
 
     void cycleSendBack();        //周期性回送消息 张尚之添加

@@ -366,9 +366,15 @@ void Server::recieve_request()
             room_info[idx].index = idx;
             this->changeReq(idx, oldSpeed, room_info[idx].wind_speed);
 
-            if(room_info[idx].state == WAIT)
+            int req_state = this->put(idx, room_info[idx].wind_speed);
+            if(req_state == -1)
             {
-                send_data(tcpSocket, 4, 0);
+                send_data(tcpSocket, 3, 0);
+                room_info[idx].state = WAIT;
+            }
+            else
+            {
+                room_info[idx].state = AT_SERVICE;
             }
 
         }
@@ -622,7 +628,6 @@ int Server::changeReq(int room_index, int oldSpeed, int newSpeed){
     if(oldSpeed>newSpeed){    // down
         ac[idx].removeShare(room_index);    // 删除，放到请求队列中
         request.push(&room_info[idx]);
-        room_info[idx].state=WAIT;
         balanceAC();
 //        if(!ac[idx].isOn){                  // 减到空
 //            for(int i=0;i<MAXSERVE;i++){    // 调整
@@ -640,8 +645,7 @@ int Server::changeReq(int room_index, int oldSpeed, int newSpeed){
     }
     else{   // 增加，删除，重新添加平衡
         ac[idx].removeShare(room_index);
-        put(room_index,newSpeed);
-       // if(!=0) qDebug()<<"Error";
+        if(put(room_index,newSpeed)!=0) qDebug()<<"Error";
     }
 }
 
@@ -675,7 +679,6 @@ int Server::balanceAC()
                 for(int k=0;k<num;k++){
                     int back=ac[maxRR].popback();
                     ac[i].addShare(back);
-                    room_info[back].state=AT_SERVICE;
                 }
             }
         }
@@ -683,10 +686,7 @@ int Server::balanceAC()
     }
     // 没有需要平衡尝试把请求队列中元素加入
     if(request.empty()) return 0;   // 没有更多请求
-    while(put(request.top()->index,request.top()->wind_speed)!=-1) {
-        request.top()->state=AT_SERVICE;
-        request.pop();   // 添加请求
-    }
+    while(put(request.top()->index,request.top()->wind_speed)!=-1) request.pop();   // 添加请求
 
     return 0;
 }

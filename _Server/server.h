@@ -53,6 +53,8 @@ typedef struct Room{
 
 } room;
 
+
+
 class QTcpServer;
 
 class AirCond{
@@ -72,14 +74,7 @@ public:
     int removeShareIdx(int idx);    // remove by index return id
     int getNowServicing();          // index in room_info
     int getWillServicing();         // return id
-    int popback();
     bool contains(int id);
-
-    QVector<int> getShareQ();
-    int clearall(){
-        shareQ.clear();
-        return 0;
-    }
 };
 
 
@@ -110,10 +105,6 @@ private:
     int     serve_num;
     int     timeSlot;
 
-    int     default_tg_tmp_low = 26;
-    int     default_tg_tmp_high = 30;
-    int     default_fan = 3;
-
     QTcpServer* tcpServer;
 //    QTcpSocket* tcpSocket;
     QVector<QTcpSocket*> tcpSocket_vec;
@@ -143,13 +134,16 @@ private:
 
     QVector<AirCond> ac;        // AC entities
 
-    std::priority_queue<room*> request;
-    int addReq(int room_id,int windspeed);  // return 0-OK,-1-DELAY
+    // 返回true说明r1优先级低于r2
+    std::priority_queue<room> request;  // 请求队列
+
     int put(int room_id,int windspeed);  // return 0-OK,-1-DELAY
     int changeReq(int room_id,int oldSpeed,int newSpeed);
     int updateRequestQueue();           // update req Q, return update amount
-    int balanceAC();
-    QMap<QString, int> idToIdx;
+
+
+
+
 
 private slots:
     void recieve_request();        //监听端口，处理接收到的请求
@@ -158,14 +152,9 @@ private slots:
     void displayError(QAbstractSocket::SocketError);
     void connecting();
 
-    void cyclePrint();
-
 
     void cycleSendBack();        //周期性回送消息 张尚之添加
     void cycleCompute();         //周期性计算数据 张尚之加
-    void refreshInfoWindow();    //周期性刷新窗口数据
-    QString stateToString(ClientState s);
-    QString fanToString(int f);
 };
 
 #endif // SERVER_H

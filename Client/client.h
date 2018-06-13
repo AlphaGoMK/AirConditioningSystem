@@ -53,6 +53,10 @@ private slots:
 
 
     void on_pushButton_6_clicked();
+    void on_pushButton_clicked();
+
+
+    void on_pushButton_2_clicked();
 
 private:
     Ui::Client *ui;
@@ -63,6 +67,7 @@ private:
     double t_high;          //最高温度
     double t_low;           //最低温度
     double threshold;       //温变阈值
+    double env_tp;          //环境温度，回温的上限
     WorkMode mode;          //工作模式
 
     double fade_rate;

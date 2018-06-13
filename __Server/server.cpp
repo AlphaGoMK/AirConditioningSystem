@@ -7,8 +7,6 @@
 #include <fstream>
 #define T 3
 
-#define _MAXSERVE 2
-
 QTime current_time =QTime::currentTime();
 
 bool operator < (const room &r1, const room &r2){   // 返回true说明r1优先级低于r2
@@ -58,7 +56,6 @@ int AirCond::addShare(int id){
         current=0;
     }
     shareQ.push_back(id);
-
     return 0;
 }
 
@@ -79,7 +76,6 @@ int AirCond::removeShare(int id){
             else{
                 current=(index+1)/shareQ.length();
             }
-            break;
         }
         index++;
     }
@@ -109,13 +105,6 @@ int AirCond::getWillServicing(){
     else return -1;
 }
 
-int AirCond::AirCond::popback()
-{
-    int res=shareQ.back();
-    shareQ.pop_back();
-    return res;
-}
-
 bool AirCond::contains(int id){
     for(QVector<int>::iterator it=shareQ.begin();it!=shareQ.end();it++){
         if(*it==id){
@@ -125,10 +114,13 @@ bool AirCond::contains(int id){
     return false;
 }
 
-QVector<int> AirCond::getShareQ()
+int AirCond::popback()
 {
-    return shareQ;
+    int res=shareQ.back();
+    shareQ.pop_back();
+    return res;
 }
+
 Server::Server(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::Server)
@@ -144,7 +136,7 @@ Server::Server(QWidget *parent) :
     eprice=2.0;
     t_high=30.0;
     t_low=16.0;
-    MAXSERVE=_MAXSERVE;
+    MAXSERVE=3;
     tp_range=2.0;
     target_t=target_w=target_x=NULL;
     cgtp_pere=0.1;
@@ -197,22 +189,6 @@ void Server::connecting()
     init_room(tcpSocket);
 }
 
-void Server::cyclePrint()
-{
-
-    for(int i=0;i<MAXSERVE;i++){
-        QVector<int> ttt=ac[i].getShareQ();
-        QString debuggg="";
-        debuggg="AC["+QString::number(i+1)+"] ";
-        for(QVector<int>::iterator it=ttt.begin();it!=ttt.end();it++){
-            debuggg+=room_info[*it].room_id+"@"+QString::number(room_info[*it].wind_speed)+" ";
-        }
-        if(ac[i].isOn)
-            qDebug()<<debuggg;
-    }
-    return;
-}
-
 void Server::cycleSendBack()         //定时回送函数，张尚之加
 {
     for(int i = 0; i < this->tcpSocket_vec.size(); i++)
@@ -233,9 +209,6 @@ void Server::cycleCompute()
     this->cycleSendBack();
     this->refreshInfoWindow();
     this->write_log();
-
-
-    this->cyclePrint();
 }
 
 void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
@@ -343,53 +316,20 @@ void Server::recieve_request()
         }
         else if(res[0]=="c")//更改：c_房间号_当前温度_目标温度_风速
         {
-            room_info[idx].cur_tp=res[2].toDouble();
-            if(res[3] == "#")
-            {
-               room_info[idx].target_tp = this->serve_mod == 0? this->default_tg_tmp_low:this->default_tg_tmp_low;
-            }
-            else
-            {
-                room_info[idx].target_tp = res[3].toDouble();
-            }
-
-            int oldSpeed  = room_info[idx].wind_speed;
-            if(res[4] == "#")
-            {
-                room_info[idx].wind_speed = this->default_fan;
-            }
-            else
-            {
-                room_info[idx].wind_speed = res[4].toInt();
-            }
-            room_info[idx].req_time = QTime::currentTime();
-            room_info[idx].index = idx;
-            this->changeReq(idx, oldSpeed, room_info[idx].wind_speed);
-
-            if(room_info[idx].state == WAIT)
-            {
-                send_data(tcpSocket, 4, 0);
-            }
-
+            //todo
+//            if(target_x!=NULL){
+//                target_x->cur_tp=res[2].toDouble();
+//                target_x->target_tp=res[3].toDouble();
+//                target_x->wind_speed=res[4].toInt();
+//            }
         }
         else if(res[0]=="close")//关机：close_房间号
         {
             if(target_x!=NULL){
                 target_x->end_time=QString::number(current_time.hour())+"/" +QString::number(current_time.minute())+"/"+QString::number(current_time.second());
             }
-            if(room_info[idx].state == AT_SERVICE)
-            {
-                for(int i = 0; i < MAXSERVE; i ++)
-                {
-                    if(ac[i].contains(idx))
-                    {
-                        ac[i].removeShare(idx);
-                        balanceAC();
-                        break;
-                    }
-                }
-            }
             room_info[idx].state = CLOSE;
+
             send_data(tcpSocket, 2, 0);
         }
     }
@@ -522,81 +462,40 @@ int Server::put(int room_id, int windspeed){
         if(ac.at(i).isOn==false) {
             int tmp=room_id;
             ac[i].addShare(tmp);
-            room_info[tmp].state=AT_SERVICE;
             return 0;
         }
     }
 
     // 没空位找级别低的踢出
-    // find least wind speed
-    int leastACidx=0;
     for(int i=0;i<MAXSERVE;i++){
-        if(room_info[ac[leastACidx].getNowServicing()].wind_speed>room_info[ac[i].getNowServicing()].wind_speed)
-            leastACidx=i;
-    }
-    // bigger than least wind speed
-    if(room_info[ac[leastACidx].getNowServicing()].wind_speed<windspeed){
-        int peer=-1;
-        // find substitute
-        for(int j=0;j<MAXSERVE;j++){
-            if(j!=leastACidx&&room_info[ac[j].getNowServicing()].wind_speed==room_info[ac[leastACidx].getNowServicing()].wind_speed){
-                peer=j;
-                break;
-            }
-        }
-
-        QVector<int> temp=ac[leastACidx].getShareQ();
-        if(peer!=-1){
-            for(QVector<int>::iterator it=temp.begin();it!=temp.end();it++){
-                ac[peer].addShare(*it);
-            }
-
-        }
-        else{
-            for(QVector<int>::iterator it=temp.begin();it!=temp.end();it++){
-                room_info[*it].state=WAIT;
-                request.push(&room_info[*it]);
-            }
-        }
-        ac[leastACidx].clearall();
-        ac[leastACidx].addShare(room_id);
-        return 0;
-    }
-
-
-    // 没空位找同级别的加入
-    QTime globalOldestTime = QTime::currentTime();
-    int insert_idx;
-    for(int i=0;i<MAXSERVE;i++){
-        if(room_info[ac[i].getNowServicing()].wind_speed==windspeed){
-            //查找当前队列的最晚服务时间
-            QVector<int> cur_idx = ac[i].getShareQ();
-            QTime nearestTime = QTime(0, 0);
-            for(auto i = cur_idx.begin(); i != cur_idx.end(); i++)
-            {
-                if(room_info[*i].req_time > nearestTime)
-                {
-                    nearestTime = room_info[*i].req_time;
+        if(room_info[ac[i].getNowServicing()].wind_speed<windspeed){
+            int peer=-1;
+            int subwindsp=room_info[ac[i].getNowServicing()].wind_speed;
+            for(int j=i+1;j<MAXSERVE;j++){
+                if(room_info[ac[j].getNowServicing()].wind_speed==subwindsp){
+                    peer=j;
+                    break;
                 }
             }
-            if(nearestTime < globalOldestTime)
-            {
-                insert_idx = i;
-                globalOldestTime = nearestTime;
+            if(peer!=-1){
+                while(ac[i].isOn) ac[peer].addShare(ac[i].removeShareIdx(0));
+
             }
+            ac[i].addShare(room_id);
+            return 0;
         }
     }
-    ac[insert_idx].addShare(room_id);
-    return 0;
-//    for(int i=0;i<MAXSERVE;i++){
-//        if(room_info[ac[i].getNowServicing()].wind_speed==windspeed){
-//            ac[i].addShare(room_id);
-//            return 0;
-//        }
-//    }
+
+    // 没空位找同级别的加入
+    for(int i=0;i<MAXSERVE;i++){
+        if(room_info[ac[i].getNowServicing()].wind_speed==windspeed){
+            ac[i].addShare(room_id);
+            return 0;
+        }
+    }
 
     // 全部等级高，加回等待队列中
-    request.push(&room_info[room_id]);
+    request.push(room_info[room_id]);
     return -1;
 }
 
@@ -621,27 +520,24 @@ int Server::changeReq(int room_index, int oldSpeed, int newSpeed){
     int found=0;
     if(oldSpeed>newSpeed){    // down
         ac[idx].removeShare(room_index);    // 删除，放到请求队列中
-        request.push(&room_info[idx]);
-        room_info[idx].state=WAIT;
-        balanceAC();
-//        if(!ac[idx].isOn){                  // 减到空
-//            for(int i=0;i<MAXSERVE;i++){    // 调整
-//                if(ac[i].isRoundRobin){
-//                    ac[idx].addShare(ac[i].getWillServicing());
-//                    ac[i].removeShare(ac[i].getWillServicing());
-//                    break;
-//                }
-//            }
-//            // 重新添加
-//            while(put(request.top()->index,request.top()->wind_speed)!=-1){
-//                request.pop();
-//            }
-//        }
+        request.push(room_info[idx]);
+        if(!ac[idx].isOn){                  // 减到空
+            for(int i=0;i<MAXSERVE;i++){    // 调整
+                if(ac[i].isRoundRobin){
+                    ac[idx].addShare(ac[i].getWillServicing());
+                    ac[i].removeShare(ac[i].getWillServicing());
+                    break;
+                }
+            }
+            // 重新添加
+            while(put(request.top().index,request.top().wind_speed)!=-1){
+                request.pop();
+            }
+        }
     }
     else{   // 增加，删除，重新添加平衡
         ac[idx].removeShare(room_index);
-        put(room_index,newSpeed);
-       // if(!=0) qDebug()<<"Error";
+        if(put(room_index,newSpeed)!=0) qDebug()<<"Error";
     }
 }
 
@@ -649,9 +545,9 @@ int Server::updateRequestQueue(){
 
     int cnt=0;
     while(!request.empty()){
-        room* tmp=request.top();
+        room tmp=request.top();
         request.pop();
-        int state=put(tmp->index,tmp->wind_speed);
+        int state=put(tmp.index,tmp.wind_speed);
         if(state==-1) break;
         cnt++;
     }
@@ -666,7 +562,7 @@ int Server::balanceAC()
         if(!ac[i].isOn){    // find largest RR to fill
             int maxRR=0;
             for(int j=0;j<MAXSERVE;j++){
-                if(ac[j].isRoundRobin&&ac[j].getShareQ().length()>ac[maxRR].getShareQ().length())
+                if(ac[j].isRoundRobin&&ac[j].getShareQ().length()>ac[maxRR].getshareQ().length())
                     maxRR=j;
             }
             if(ac[maxRR].isRoundRobin){ // found
@@ -675,17 +571,13 @@ int Server::balanceAC()
                 for(int k=0;k<num;k++){
                     int back=ac[maxRR].popback();
                     ac[i].addShare(back);
-                    room_info[back].state=AT_SERVICE;
                 }
             }
+            else{   // 全是独占
+                if(request.empty()) return 0;   // 没有更多请求
+                while(put(request.top()->index,request.top()->wind_speed)!=-1) request.pop();   // 添加请求
+            }
         }
-
-    }
-    // 没有需要平衡尝试把请求队列中元素加入
-    if(request.empty()) return 0;   // 没有更多请求
-    while(put(request.top()->index,request.top()->wind_speed)!=-1) {
-        request.top()->state=AT_SERVICE;
-        request.pop();   // 添加请求
     }
 
     return 0;

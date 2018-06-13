@@ -13,14 +13,16 @@ Client::Client(QWidget *parent) :
     this->inited = false;
     this->cur_tp = 28;
     this->charge = 0.;
+    this->env_tp = 28;
     this->wind_speed = 0;
-    this->room_id = "306D";
+    this->room_id = "306C";
     this->target_tp = this->cur_tp;
+    this->ui->get_tg_tp->display(30);
     this->update();
     QTimer::singleShot(10000, this, SLOT(check_inited()));
     tcp_socket = new QTcpSocket();
     tcp_socket->abort();
-    tcp_socket->connectToHost("127.0.0.1", 6666);
+    tcp_socket->connectToHost("10.105.240.188", 6666);
     connect(tcp_socket, SIGNAL(readyRead()), this, SLOT(parse_data()));
 
     this->init();
@@ -39,8 +41,14 @@ Client::~Client()
 
 void Client::fade(){
     cur_tp+=(this->mode==COLD?1:-1)*fade_rate;
+
+    if(this->mode == COLD && cur_tp >= env_tp)
+        cur_tp = env_tp;
+    if(this->mode == HOT && cur_tp <= env_tp)
+        cur_tp = env_tp;
+
     this->refresh_screen();
-    if(abs(cur_tp-target_tp)>threshold){
+    if(abs(cur_tp-target_tp)>threshold && state != CLOSE){
         fade_timer->stop();
         QString msg="r_"+room_id+"_"+QString::number(cur_tp)+"_"+QString::number(target_tp)+"_"+QString::number(wind_speed);
         send_to_server(msg);
@@ -48,7 +56,7 @@ void Client::fade(){
 }
 
 void Client::on_pushButton_7_clicked(){
-    double desire_T=ui->get_tg_tp->text().toDouble();
+    double desire_T=(double)(ui->get_tg_tp->intValue());
     int desire_V;
     if(ui->radioButton->isChecked()) desire_V=1;
     else if(ui->radioButton_2->isChecked()) desire_V=2;
@@ -106,28 +114,48 @@ void Client::parse_data()
                 this->mode = HOT;
             }
             QStringList t_range = res[3].split('-');
-            this->t_high = res[0].toDouble();
-            this->t_low = res[1].toDouble();
+            this->t_high = t_range[1].toDouble();
+            this->t_low = t_range[0].toDouble();
             this->threshold = res[4].toDouble();
             this->state=BOOT;
             this->inited = true;
         }
         else if(res[0] == "a")
         {
-            this->cur_tp = res[2].toDouble();
-            this->charge = (res[3].toDouble())*0.1;
-            //时间暂不处理
-            this->target_tp = res[5].toDouble();
-            this->wind_speed = res[6].toInt();
-            this->state=AT_SERVICE;
-            this->refresh_screen();
+            this->state = AT_SERVICE;
+            if(this->state != WAIT)
+            {
+                this->cur_tp = res[2].toDouble();
+                this->charge = (res[3].toDouble())*0.1;
+                //时间暂不处理
+                this->target_tp = res[5].toDouble();
+                this->wind_speed = res[6].toInt();
+                this->state=AT_SERVICE;
+            }
+            else
+            {
+                //从WAIT状态重新转到AT_SERVICE
+                QString msg="c_"+room_id+"_"+QString::number(cur_tp)+"_"+QString::number(target_tp)+"_"+QString::number(wind_speed);
+                send_to_server(msg);
+            }
         }
-        else if(res[0] == "sleep"){
+        else if(res[0] == "sleep")
+        {
             // 开始回温计时器
             fade_timer->start(1000);
             this->state=SLEEP;
-            this->refresh_screen();
         }
+        else if(res[0] == "wait")
+        {
+            fade_timer->start(1000);
+            this->state = WAIT;
+        }
+        else if(res[0] == "close")
+        {
+            fade_timer->start(1000);
+            this->state = CLOSE;
+        }
+        this->refresh_screen();
     }
 }
 
@@ -137,46 +165,8 @@ int Client::init(){
     return 0;
 }
 
-int Client::init_connect(){
-//    if(argc!=3){
-//        printf("Usage: %s IPAddress PortNumber/n",argv[0]);
-//        exit(-1);
-//    }
-//    //把字符串的IP地址转化为u_long
-//    unsigned long ip;
-//    if((ip=inet_addr(argv[1]))==INADDR_NONE){
-//        printf("不合法的IP地址：%s",argv[1]);
-//        exit(-1);
-//    }
-//    //把端口号转化成整数
-//    short port;
-//    if((port = atoi(argv[2]))==0){
-//        printf("端口号有误！");
-//        exit(-1);
-//    }
-//    printf("Connecting to %s:%d....../n",inet_ntoa(*(in_addr*)&ip),port);
-//    WSADATA wsa;
-//    //初始化套接字DLL
-//    if(WSAStartup(MAKEWORD(2,2),&wsa)!=0){
-//        printf("套接字初始化失败!");
-//        exit(-1);
-//    }
-//    //创建套接字
-//    if((sock=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP))==INVALID_SOCKET){
-//        printf("创建套接字失败！");
-//        exit(-1);
-//    }
-//    memset(&serverAddress,0,sizeof(sockaddr_in));
-//    serverAddress.sin_family=AF_INET;
-//    serverAddress.sin_addr.S_un.S_addr = ip;
-//    serverAddress.sin_port = htons(port);
-//    //建立和服务器的连接
-//    if(connect(sock,(sockaddr*)&serverAddress,sizeof(serverAddress))==SOCKET_ERROR){
-//        printf("建立连接失败！");
-//        exit(-1);
-//    }
-
-//    return 0;
+int Client::init_connect()
+{
 }
 
 int Client::close_connect(){
@@ -203,6 +193,14 @@ void Client::refresh_screen()
     default:
         this->ui->wspd_label->setText("");
         break;
+    }
+    if(mode == COLD)
+    {
+        this->ui->modeLabel->setText("制冷");
+    }
+    else
+    {
+        this->ui->modeLabel->setText("制热");
     }
     if (state!=AT_SERVICE){
         this->ui->wspd_label->setText("");
@@ -233,35 +231,23 @@ int Client::send_to_server(QString msg){
     return 0;
 }
 
-
-//int Client::send_to_server(QString msg){
-//    QByteArray ba=msg.toLatin1();
-//    char* ch=ba.data();
-//    char* buf;
-//    buf=new char[100];
-//    if(send(sock,ch,msg.length(),0)==SOCKET_ERROR){
-//        qDebug()<<"发送数据失败！\n";
-//        exit(-1);
-//    }
-//    int bytes;
-//    if((bytes=recv(sock,buf,sizeof(buf),0))==SOCKET_ERROR){
-//    qDebug()<<"接收数据失败!\n";
-//    exit(-1);
-//    }
-//    buf[bytes]='/0';
-//    qDebug()<<"Message from "<<inet_ntoa(serverAddress.sin_addr)<<":"<<buf<<"\n";
-//}
-
 void Client::on_pushButton_5_clicked()
 {
-    target_tp=ui->get_tg_tp->text().toDouble();
+    target_tp=(double)(ui->get_tg_tp->intValue());
     if(ui->radioButton->isChecked()) wind_speed=1;
     else if(ui->radioButton_2->isChecked()) wind_speed=2;
     else wind_speed=3;
-
-    QString msg="r_"+room_id+"_"+QString::number(cur_tp)+"_"+QString::number(target_tp)+"_"+QString::number(wind_speed);
-
-    send_to_server(msg);
+    if((this->mode == COLD && this->cur_tp <= this->target_tp) || \
+            (this->mode == HOT && this->cur_tp >= this->target_tp))
+    {
+        QString modString = this->mode == COLD? "制冷": "制热";
+        int ret = QMessageBox::critical(this, "错误",QString("当前模式为") + modString);
+    }
+    else
+    {
+        QString msg="r_"+room_id+"_"+QString::number(cur_tp)+"_"+QString::number(target_tp)+"_"+QString::number(wind_speed);
+        send_to_server(msg);
+    }
 }
 
 void Client::on_pushButton_6_clicked()
@@ -269,4 +255,22 @@ void Client::on_pushButton_6_clicked()
     QString msg="close_"+room_id;
 
     send_to_server(msg);
+}
+
+void Client::on_pushButton_clicked()
+{
+    int tmp = this->ui->get_tg_tp->intValue();
+    tmp = tmp + 1;
+    if(tmp > this->t_high)
+        tmp = t_high;
+    this->ui->get_tg_tp->display(tmp);
+}
+
+void Client::on_pushButton_2_clicked()
+{
+    int tmp = this->ui->get_tg_tp->intValue();
+    tmp -= 1;
+    if(tmp < this->t_low)
+        tmp = t_low;
+    this->ui->get_tg_tp->display(tmp);
 }
