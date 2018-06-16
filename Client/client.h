@@ -9,6 +9,10 @@
 #include <QString>
 #include <qtimer.h>
 #include "initwindow.h"
+#include <QSqlError>
+#include <Qtsql/QSqlDatabase>
+#include <Qtsql/QSqlQuery>
+#include <QSqlRecord>
 
 #pragma comment(lib,"ws2_32.lib")
 
@@ -91,6 +95,8 @@ private:
     QTcpSocket * tcp_socket;
 
     QTimer* fade_timer;
+
+    QSqlDatabase db;
 
     bool recv_reg();     //接收服务端start信令，初始化Client
     int send_to_server(QString msg);

@@ -21,7 +21,27 @@ Client::Client(QWidget *parent) :
     this->ui->pushButton_2->setDisabled(true);
     this->ui->up->setDisabled(true);
 
-    this->room_id = "306C";
+    db=QSqlDatabase::addDatabase("QMYSQL");
+    db.setHostName("127.0.0.1");
+    db.setDatabaseName("air");
+    db.setUserName("root");
+    db.setPassword("123456");
+    // ???
+    if(!db.open()){
+        qDebug() << "operation error!";
+        qDebug() << db.lastError();
+        return;
+    }
+    QSqlQuery query(db);
+    QString sqlstr;
+    sqlstr="select * from clientparam";
+    query.exec(sqlstr);
+    query.next();
+    this->room_id=query.value(0).toString();
+    QString sip=query.value(1).toString();
+    int sport=query.value(2).toInt();
+    fade_rate=query.value(3).toDouble();
+
 
     this->ui->get_tg_tp->display((int)target_tp);
     this->ui->pushButton_7->setDisabled(true);
@@ -29,14 +49,16 @@ Client::Client(QWidget *parent) :
     QTimer::singleShot(10000, this, SLOT(check_inited()));
     tcp_socket = new QTcpSocket();
     tcp_socket->abort();
-    tcp_socket->connectToHost("10.105.240.188", 6666);
+    tcp_socket->connectToHost(sip, sport);
     connect(tcp_socket, SIGNAL(readyRead()), this, SLOT(parse_data()));
 
     this->init();
-    fade_rate= 1.0 / 30;         //30s回温一度
     fade_timer=new QTimer();
     connect(fade_timer,SIGNAL(timeout()),this,SLOT(fade()));
     connect(initWindow, SIGNAL(get_env_tp(int)), this, SLOT(set_env_tp(int)));
+
+
+
 
     this->update();
 }

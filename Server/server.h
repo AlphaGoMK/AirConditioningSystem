@@ -185,6 +185,9 @@ private:
 
     double  ecost[3];   //    三种风速下的单位时间耗电量（度/分钟）
     float   eprice;     //    每度电的价格（元/度）（用来计算三种风速的价格）
+    int     slot;       //    系统多少秒计算一次温度
+    int     sec_per_minute;    //每秒对应的分钟数
+    int     timeslot;          //轮转时间片大小
     float   cgtp_pere;  //    单位电量温度下降幅度（摄氏度/度）（用来计算三种风速的温度下降幅度）
     int     serve_mod;  //    空调系统工作模式（0-制冷、1-制热）
     double  t_high;          //最高温度 空调的工作温度范围

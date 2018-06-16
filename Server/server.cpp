@@ -20,52 +20,6 @@ Server::Server(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    wait_num=0;
-    serve_num=0;
-    serve_mod=0; // 0制冷 1制热
-    ecost[0]=2;
-    ecost[1]=4;
-    ecost[2]=8;
-    eprice=0.02;
-    t_high=30.0;
-    t_low=16.0;
-    MAXSERVE=_MAXSERVE;
-    tp_range=2.0;
-    target_t=target_w=target_x=NULL;
-    cgtp_pere=0.03;
-    tcpServer = new QTcpServer(this);
-    if(!tcpServer->listen(QHostAddress::Any, 6666))
-    {
-        qDebug()<<tcpServer->errorString();
-        close();
-    }
-    connect(tcpServer, SIGNAL(newConnection()), this, SLOT(connecting()));
-
-//    send_back_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
-//    send_back_timer->start(1000);                            //定时回送事件，张尚之加
-//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(cycleSendBack())); //定时回送事件，张尚之加
-
-    cmp_log_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
-    cmp_log_timer->start(1000);                            //定时回送事件，张尚之加
-    connect(cmp_log_timer, SIGNAL(timeout()), this, SLOT(cycleCompute())); //定时回送事件，张尚之加
-
-    this->idToIdx["306C"] = 0;
-    this->idToIdx["306D"] = 1;
-    this->idToIdx["307C"] = 2;
-    this->idToIdx["307D"] = 3;
-    this->idToIdx["308C"] = 4;
-    this->idToIdx["308D"] = 5;
-    this->idToIdx["309C"] = 6;
-    this->idToIdx["309D"] = 7;
-    this->idToIdx["310C"] = 8;
-    this->idToIdx["310D"] = 9;
-
-    this->refreshInfoWindow();
-
-    //初始化
-    for(int i = 0; i < 100; i ++)
-        acdevice[i] = -1;
-
     // 数据库初始化
     db = QSqlDatabase::addDatabase("QMYSQL");
 
@@ -73,7 +27,7 @@ Server::Server(QWidget *parent) :
     db.setHostName("127.0.0.1");
     db.setDatabaseName("air");
     db.setUserName("root");
-    db.setPassword("740738");
+    db.setPassword("123456");
 
     if(!db.open()){
         qDebug() << "operation error!";
@@ -103,6 +57,93 @@ Server::Server(QWidget *parent) :
     if(!success){
        qDebug() << "creating table fails!";
     }
+
+    //读取初始化用数据用
+    sql = QString("select * from parameters");
+    query.exec(sql);
+    query.next();
+    ecost[2] = (double)query.value(0).toInt();
+//    qDebug() << ecost[2];
+    ecost[1] = (double)query.value(1).toInt();
+//    qDebug() << ecost[1];
+    ecost[0] = (double)query.value(2).toInt();
+//    qDebug() << ecost[0];
+    eprice = query.value(3).toDouble();
+//    qDebug() << eprice;
+    cgtp_pere = query.value(4).toDouble();
+//    qDebug() << cgtp_pere;
+    serve_mod = query.value(5).toInt();
+//    qDebug() << serve_mod;
+    t_high = (double)query.value(6).toDouble();
+//    qDebug() << t_high;
+    t_low = (double)query.value(7).toDouble();
+//    qDebug() << t_low;
+    MAXSERVE = query.value(8).toInt();
+//    qDebug() << MAXSERVE;
+    sec_per_minute = query.value(9).toInt();
+//    qDebug() << sec_per_minute;
+    timeslot = query.value(10).toInt();
+//    qDebug() << timeslot;
+    tp_range = (double)query.value(11).toInt();
+//    qDebug() << tp_range;
+    default_tg_tmp_high = default_tg_tmp_low = query.value(12).toDouble();
+//    qDebug() << default_tg_tmp_high;
+    default_fan = query.value(13).toInt();
+//    qDebug() << default_fan;
+    slot = 1;
+
+    int n_cycle = (sec_per_minute * timeslot / slot);
+    qDebug() << n_cycle;
+    for(int i = 0; i < 3; i++)
+        que[i] = Acque(n_cycle);
+
+//    wait_num=0;
+//    serve_num=0;
+//    serve_mod=0; // 0制冷 1制热
+//    ecost[0]=2;
+//    ecost[1]=4;
+//    ecost[2]=8;
+//    eprice=0.02;
+//    t_high=30.0;
+//    t_low=16.0;
+//    MAXSERVE=_MAXSERVE;
+//    tp_range=2.0;
+//    target_t=target_w=target_x=NULL;
+//    cgtp_pere=0.03;
+
+    tcpServer = new QTcpServer(this);
+    if(!tcpServer->listen(QHostAddress::Any, 6666))
+    {
+        qDebug()<<tcpServer->errorString();
+        close();
+    }
+    connect(tcpServer, SIGNAL(newConnection()), this, SLOT(connecting()));
+
+//    send_back_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
+//    send_back_timer->start(1000);                            //定时回送事件，张尚之加
+//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(cycleSendBack())); //定时回送事件，张尚之加
+
+    cmp_log_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
+    cmp_log_timer->start(slot * 1000);                            //定时回送事件，张尚之加
+    connect(cmp_log_timer, SIGNAL(timeout()), this, SLOT(cycleCompute())); //定时回送事件，张尚之加
+
+    this->idToIdx["306C"] = 0;
+    this->idToIdx["306D"] = 1;
+    this->idToIdx["307C"] = 2;
+    this->idToIdx["307D"] = 3;
+    this->idToIdx["308C"] = 4;
+    this->idToIdx["308D"] = 5;
+    this->idToIdx["309C"] = 6;
+    this->idToIdx["309D"] = 7;
+    this->idToIdx["310C"] = 8;
+    this->idToIdx["310D"] = 9;
+
+    this->refreshInfoWindow();
+
+    //初始化
+    for(int i = 0; i < 100; i ++)
+        acdevice[i] = -1;
+
 
     this->ui->rp_date->setDateTime(QDateTime::currentDateTime());
     rpWindow = new checkout(this);
