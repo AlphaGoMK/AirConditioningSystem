@@ -101,7 +101,7 @@
    <property name="title">
     <string>Settings</string>
    </property>
-   <widget class="QPushButton" name="pushButton">
+   <widget class="QPushButton" name="up">
     <property name="geometry">
      <rect>
       <x>110</x>
@@ -207,7 +207,7 @@
     </font>
    </property>
    <property name="text">
-    <string>暂停</string>
+    <string>关机</string>
    </property>
   </widget>
   <widget class="QPushButton" name="pushButton_7">

@@ -4,131 +4,16 @@
 #include <QDebug>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QHostAddress>
+#include <QMessageBox>
 #include <fstream>
-#define T 3
+#include "checkout.h"
+#define T 2
 
-#define _MAXSERVE 2
 
-QTime current_time =QTime::currentTime();
 
-bool operator < (const room &r1, const room &r2){   // 返回true说明r1优先级低于r2
-    if(r1.wind_speed==r2.wind_speed){
-        return r1.req_time>r2.req_time;
-    }
-    else return r1.wind_speed<r2.wind_speed;
-}
+//QTime current_time =QTime::currentTime();
+QDateTime current_time = QDateTime::currentDateTime();
 
-AirCond::AirCond(int slot=1){
-    tSlot=slot;
-    isOn=false;
-    isRoundRobin=false;
-    timeCnt=0;
-    current=-1;
-}
-
-int AirCond::getNext(){
-    if(!isOn){
-        return -1;
-    }
-    else if(!isRoundRobin){
-        return 0;
-    }
-    else{
-        if(timeCnt==0){   // shift to next AC
-            current=(current+1)%shareQ.length();
-            timeCnt=1;
-            return shareQ.at(current);
-        }
-        else{
-            timeCnt=(timeCnt+1)%tSlot;
-            return shareQ.at(current);
-        }
-    }
-}
-
-int AirCond::addShare(int id){
-    if(!isOn) isOn=true;
-    if(shareQ.length()==0){   // first one
-        isOn=true;
-        current=0;
-    }
-    if(isRoundRobin==false && shareQ.length()==1){    // second one
-        isRoundRobin=true;
-        timeCnt=0;
-        current=0;
-    }
-    shareQ.push_back(id);
-
-    return 0;
-}
-
-int AirCond::removeShare(int id){
-    int index=0;
-    for(QVector<int>::iterator it=shareQ.begin();it!=shareQ.end();it++){
-        if(*it==id){
-            shareQ.erase(it);
-            if(shareQ.length()==0){
-                isOn=false;
-                current=-1;
-            }
-            else if(shareQ.length()==1){
-                isRoundRobin=false;
-                timeCnt=0;
-                current=0;
-            }
-            else{
-                current=(index+1)/shareQ.length();
-            }
-            break;
-        }
-        index++;
-    }
-    return 0;
-}
-
-int AirCond::removeShareIdx(int idx){
-    int res=0;
-    if(shareQ.length()==0) return -1;
-    if(idx>=shareQ.length()) return -1;
-    res=shareQ[idx];
-    shareQ.remove(idx);
-    return res;
-}
-
-int AirCond::getNowServicing(){
-    if(isOn){
-        return shareQ.at(current);
-    }
-    else return -1;
-}
-
-int AirCond::getWillServicing(){
-    if(isOn&&isRoundRobin){
-        return shareQ[(current+1)%shareQ.length()];
-    }
-    else return -1;
-}
-
-int AirCond::AirCond::popback()
-{
-    int res=shareQ.back();
-    shareQ.pop_back();
-    return res;
-}
-
-bool AirCond::contains(int id){
-    for(QVector<int>::iterator it=shareQ.begin();it!=shareQ.end();it++){
-        if(*it==id){
-            return true;
-        }
-    }
-    return false;
-}
-
-QVector<int> AirCond::getShareQ()
-{
-    return shareQ;
-}
 Server::Server(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::Server)
@@ -138,16 +23,16 @@ Server::Server(QWidget *parent) :
     wait_num=0;
     serve_num=0;
     serve_mod=0; // 0制冷 1制热
-    ecost[0]=1;
-    ecost[1]=2;
-    ecost[2]=3;
-    eprice=2.0;
+    ecost[0]=2;
+    ecost[1]=4;
+    ecost[2]=8;
+    eprice=0.02;
     t_high=30.0;
     t_low=16.0;
     MAXSERVE=_MAXSERVE;
     tp_range=2.0;
     target_t=target_w=target_x=NULL;
-    cgtp_pere=0.1;
+    cgtp_pere=0.03;
     tcpServer = new QTcpServer(this);
     if(!tcpServer->listen(QHostAddress::Any, 6666))
     {
@@ -164,11 +49,6 @@ Server::Server(QWidget *parent) :
     cmp_log_timer->start(1000);                            //定时回送事件，张尚之加
     connect(cmp_log_timer, SIGNAL(timeout()), this, SLOT(cycleCompute())); //定时回送事件，张尚之加
 
-    for(int i=0;i<MAXSERVE;i++){    // init each AC entities
-        AirCond* tmp=new AirCond(timeSlot);
-        ac.push_back(*tmp);
-    }
-
     this->idToIdx["306C"] = 0;
     this->idToIdx["306D"] = 1;
     this->idToIdx["307C"] = 2;
@@ -181,6 +61,54 @@ Server::Server(QWidget *parent) :
     this->idToIdx["310D"] = 9;
 
     this->refreshInfoWindow();
+
+    //初始化
+    for(int i = 0; i < 100; i ++)
+        acdevice[i] = -1;
+
+    // 数据库初始化
+    db = QSqlDatabase::addDatabase("QMYSQL");
+
+    // 设置账号密码
+    db.setHostName("127.0.0.1");
+    db.setDatabaseName("air");
+    db.setUserName("root");
+    db.setPassword("740738");
+
+    if(!db.open()){
+        qDebug() << "operation error!";
+        qDebug() << db.lastError();
+        return;
+    }
+
+    //删除旧表
+    QSqlQuery query(db);
+    QString sql;
+    bool success;
+    sql = QString("drop table log");
+    success = query.exec(sql);
+
+    sql = QString("create table if not exists log \
+                (room_id varchar(40) not null, \
+                req_time datetime, \
+                cur_time datetime,  \
+                event varchar(10) not null,\
+                cur_tp float,\
+                target_tp float, \
+                wind_speed int, \
+                elec float, \
+                charge float)");
+    success = query.exec(sql);
+
+    if(!success){
+       qDebug() << "creating table fails!";
+    }
+
+    this->ui->rp_date->setDateTime(QDateTime::currentDateTime());
+    rpWindow = new checkout(this);
+    this->rpWindow->setVisible(false);
+    connect(this->rpWindow, SIGNAL(query(QString,QDateTime,QDateTime)),
+            this, SLOT(answer_and_show(QString,QDateTime,QDateTime)));
 }
 
 Server::~Server()
@@ -200,16 +128,29 @@ void Server::connecting()
 void Server::cyclePrint()
 {
 
-    for(int i=0;i<MAXSERVE;i++){
-        QVector<int> ttt=ac[i].getShareQ();
-        QString debuggg="";
-        debuggg="AC["+QString::number(i+1)+"] ";
-        for(QVector<int>::iterator it=ttt.begin();it!=ttt.end();it++){
-            debuggg+=room_info[*it].room_id+"@"+QString::number(room_info[*it].wind_speed)+" ";
-        }
-        if(ac[i].isOn)
-            qDebug()<<debuggg;
-    }
+//    for(int i=0;i<MAXSERVE;i++)
+//    {
+//        QVector<int> ttt=ac[i].getShareQ();
+//        QString debuggg="";
+//        debuggg="AC["+QString::number(i+1)+"] ";
+//        for(QVector<int>::iterator it=ttt.begin();it!=ttt.end();it++){
+//            debuggg+=room_info[*it].room_id+"@"+QString::number(room_info[*it].wind_speed)+" ";
+//        }
+//        if(ac[i].isOn)
+//            qDebug()<<debuggg;
+//    }
+//    QString debuggg = "WAIT: ";
+//    for(int i=0; i < room_info.length(); i++)
+//    {
+//        if(room_info[i].state == WAIT2)
+//        {
+//            debuggg += room_info[i].room_id + "@" + QString::number(room_info[i].wind_speed) + " ";
+//        }
+//    }
+//    if(debuggg != "WAIT: ")
+//        qDebug()<<debuggg;
+//    return;
+    for(int i=0;i<3;i++) que[i].disp();
     return;
 }
 
@@ -229,25 +170,25 @@ void Server::cycleSendBack()         //定时回送函数，张尚之加
 
 void Server::cycleCompute()
 {
+    //qDebug()<<"timer";
+
     this->compute();
     this->cycleSendBack();
     this->refreshInfoWindow();
-    this->write_log();
-
 
     this->cyclePrint();
 }
 
-void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
+void Server::send_data(QTcpSocket* tcpSocket, int mod, QString extra)
 {
     int idx = this->search_idx(tcpSocket);  //张尚之加
-    qDebug() << room_info[idx].room_id;
+    //qDebug() << room_info[idx].room_id;
     QString x;
     switch (mod) {
         case 0:
         // 0-被连接得到start请求，回应：  start_房间号_工作模式_工作温度范围_温度波动范围
             x = "start";
-            x += "_" + start_id;     //start_id是什么？
+            x += "_" + extra;     //start_id是什么？
             x += "_" + QString::number(serve_mod);
             x += "_" + QString::number(t_low,'f',2) + "-" + QString::number(t_high,'f',2);
             x += "_" + QString::number(tp_range,'f',2);
@@ -258,7 +199,10 @@ void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
             x += "_" + (room_info[idx].room_id).toUtf8();
             x += "_" + QString("%1").arg(room_info[idx].cur_tp);
             x += "_" + QString("%1").arg(room_info[idx].charge);
-            x += "_" + QString::number(current_time.hour())+"/" +QString::number(current_time.minute())+"/"+QString::number(current_time.second());
+//            x += "_" + QString::number(current_time.hour())+"/" +QString::number(current_time.minute())+"/"+QString::number(current_time.second());
+            x += "_" + QString::number(current_time.time().hour())+\
+                 "/" + QString::number(current_time.time().minute())+\
+                 "/" + QString::number(current_time.time().second());
             x += "_" + QString("%1").arg(room_info[idx].target_tp);
             x += "_" + QString("%1").arg(room_info[idx].wind_speed);
             x += "_" + QString("%1").arg(room_info[idx].change_tp);
@@ -268,7 +212,7 @@ void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
         case 2:
         // 2-关机：                    close_房间号
             x = "close";
-            x += "_" + (room_info[idx].room_id).toUtf8();
+            x += "_" + (room_info[idx].room_id).toUtf8() + "_" + extra;
             break;
         case 3:
         // 3-到达目标温度,待机：         sleep_房间号
@@ -279,7 +223,7 @@ void Server::send_data(QTcpSocket* tcpSocket, int mod, QString start_id)
         // 4-等待：                    wait_房间号_序号
             x = "wait";
             x += "_" + (room_info[idx].room_id).toUtf8();
-            x += "_" + QString::number(wait_num);
+            x += extra;           //extra 填写 序号与等待方式
             break;
     }
     x += "_$";          //张尚之加
@@ -298,16 +242,16 @@ void Server::recieve_request()
     {
         QStringList res = str_list[i].split('_');
         //int closeid;
-
         if(res[0] == "start")//连接socket：start_房间号
         {
             send_data(tcpSocket, 0, res[1]);
 
             //连接后，绑定房间号与tcpSocket_vec、room_info的idx的映射关系 room_id_to_idx[room_id] = idx;
             QString room_id = res[1];
-            qDebug() << room_id;
+            //qDebug() << room_id;
             room_id_to_idx[room_id] = idx;
             room_info[idx].room_id = room_id;
+            room_info[idx].shedule_times = 0;
         }
         else if(res[0]=="r")//开机：r_房间号_当前温度_目标温度_风速
         {
@@ -328,21 +272,30 @@ void Server::recieve_request()
             {
                 room_info[idx].wind_speed = res[4].toInt();
             }
-            room_info[idx].req_time = QTime::currentTime();
+            room_info[idx].req_time = QDateTime::currentDateTime();
             room_info[idx].index = idx;
-            int req_state = this->put(idx, room_info[idx].wind_speed);
-            if(req_state == -1)
-            {
-                send_data(tcpSocket, 3, 0);
-                room_info[idx].state = WAIT;
-            }
-            else
-            {
-                room_info[idx].state = AT_SERVICE;
-            }
+            room_info[idx].state=BOOT;
+
+            write_log(room_info[idx].room_id, "request");      //写日志
+
+            // 615
+            addQ(idx);
+            //qDebug()<<"add ok";
+
+//            int req_state = this->put(idx, room_info[idx].wind_speed);
+//            if(req_state == -1)
+//            {
+//                send_data(tcpSocket, 4, 0);
+//                room_info[idx].state = WAIT;
+//            }
+//            else
+//            {
+//                room_info[idx].state = AT_SERVICE;
+//            }
         }
         else if(res[0]=="c")//更改：c_房间号_当前温度_目标温度_风速
         {
+
             room_info[idx].cur_tp=res[2].toDouble();
             if(res[3] == "#")
             {
@@ -362,34 +315,55 @@ void Server::recieve_request()
             {
                 room_info[idx].wind_speed = res[4].toInt();
             }
-            room_info[idx].req_time = QTime::currentTime();
+            room_info[idx].req_time = QDateTime::currentDateTime();
             room_info[idx].index = idx;
-            this->changeReq(idx, oldSpeed, room_info[idx].wind_speed);
+            write_log(room_info[idx].room_id, "change");      //写日志
 
-            if(room_info[idx].state == WAIT)
-            {
-                send_data(tcpSocket, 4, 0);
-            }
+//            if(room_info[idx].state==SLEEP) {
+//                // 615
+//                addQ(idx);
 
+//                // this->put(idx,room_info[idx].wind_speed);
+//            }
+//            else{
+//                // 615
+//                // this->changeReq(idx, oldSpeed, room_info[idx].wind_speed);
+//                changeQ(idx,oldSpeed);
+//            }
+            changeQ(idx,oldSpeed);
+//            if(room_info[idx].state == WAIT1)
+//            {
+//                send_data(tcpSocket, 4, 0);
+//            }
+//            else if(room_info[idx].state == WAIT2)
+//            {
+
+//            }
         }
         else if(res[0]=="close")//关机：close_房间号
         {
-            if(target_x!=NULL){
-                target_x->end_time=QString::number(current_time.hour())+"/" +QString::number(current_time.minute())+"/"+QString::number(current_time.second());
-            }
+
+            write_log(room_info[idx].room_id, "closed");      //写日志
+
             if(room_info[idx].state == AT_SERVICE)
             {
-                for(int i = 0; i < MAXSERVE; i ++)
-                {
-                    if(ac[i].contains(idx))
-                    {
-                        ac[i].removeShare(idx);
-                        balanceAC();
-                        break;
-                    }
-                }
+                // 615
+
+
+//                for(int i = 0; i < MAXSERVE; i ++)
+//                {
+//                    if(ac[i].contains(idx))
+//                    {
+//                        ac[i].removeShare(idx);
+//                        balanceAC();
+//                        break;
+//                    }
+//                }
             }
             room_info[idx].state = CLOSE;
+            // 615
+            removeQ(idx);
+
             send_data(tcpSocket, 2, 0);
         }
     }
@@ -420,71 +394,225 @@ void Server::init_room(QTcpSocket* tcpSocket)
     this->room_info.push_back(new_room);
 }
 
-void Server::write_log(){
-    std::fstream log("log.txt", std::ios_base::app);
-    int room_num = 5;         //???
-
-    for(int i = 0; i < room_info.size(); i++){
-        if(room_info[i].room_id != ""){
-//            log << room_info[i].room_id 有bug不会de 先注释掉
-            log << " " << room_info[i].t_high
-            << " " << room_info[i].t_low
-            << " " << room_info[i].threshold
-            << " " << (int)room_info[i].state
-            << " " << room_info[i].target_tp
-            << " " << room_info[i].wind_speed
-            << " " << room_info[i].start_time.toStdString()
-            << " " << room_info[i].end_time.toStdString()
-            << " " << room_info[i].elec
-            << " " << room_info[i].charge
-            << " " << room_info[i].cur_tp
-            << " " << room_info[i].change_tp
-            << room_info[i].price_3s
-            << endl;
+void Server::write_log(QString room_id, QString event){
+    // 查找room_id对应的在room_info数组中的序号
+    int index;
+    for(int i = 0; i < room_info.length(); i++)
+    {
+        if(room_info[i].room_id == room_id){
+            index = i;
+            break;
         }
+    }
+    // 插入
+    QSqlQuery query(db);
+    QString sql = QString("INSERT INTO log(room_id, req_time, cur_time, event, cur_tp, target_tp, "
+                          "wind_speed, elec, charge)");
+    sql += QString(" Values('%1', '%2', '%3', '%4', '%5','%6', '%7', '%8', '%9')").arg(room_info[index].room_id)
+            .arg(room_info[index].req_time.toString("yyyy-MM-dd hh:mm:ss"))
+            .arg((QDateTime::currentDateTime()).toString("yyyy-MM-dd hh:mm:ss"))
+            .arg(event)
+            .arg(room_info[index].cur_tp )
+            .arg(room_info[index].target_tp )
+            .arg(room_info[index].wind_speed)
+            .arg(room_info[index].elec)
+            .arg(room_info[index].charge);
+    qDebug() << sql;
 
-//        if(room_info[i].end_time != "--")         //？？？
-//            init_room(i);
+    bool ok = query.exec(sql);
+    if(!ok){
+       qDebug() << "insert fails!";
+       qDebug() << db.lastError();
+    }
+    else{
+       qDebug() << "insert success!";
+    }
+}
+
+
+QVector<dbrow> Server::query(QString room_id, QDateTime start, QDateTime end){
+    QVector<dbrow> res;
+    QSqlQuery query(db);
+    QString sql = QString("select * from log "
+                  "where room_id = '%1' and req_time >= '%2' and cur_time <= '%3'").arg(room_id)
+                  .arg(start.toString("yyyy-MM-dd hh:mm:ss")).arg(end.toString("yyyy-MM-dd hh:mm:ss"));
+
+    query.exec(sql);
+    while(query.next()){
+        dbrow tmp;
+        tmp.room_id = room_id;
+        tmp.req_time = query.value(1).toDateTime();
+        tmp.cur_time = query.value(2).toDateTime();
+        tmp.event = query.value(3).toString();
+        tmp.cur_tp = query.value(4).toFloat();
+        tmp.target_tp = query.value(5).toFloat();
+        tmp.wind_speed = query.value(6).toInt();
+        tmp.elec = query.value(7).toFloat();
+        tmp.charge = query.value(8).toFloat();
+        res.push_back(tmp);
     }
 
-    log.close();
+    return res;
+}
 
+rprow Server::get_rprow(QString room_id, QDateTime query_date)
+{
+    rprow r;
+    QSqlQuery query(db);
+    QString sql;
+    //查询使用次数
+    sql = QString("select count(*) from log "
+                  "where room_id = '%1' and "
+                  "to_days(req_time) = to_days('%2') and "
+                  "event = 'closed'")
+                  .arg(room_id)
+                  .arg(query_date.toString("yyyy-MM-dd"));
+    qDebug() << sql;
+    query.exec(sql);
+    query.next();
+    r.times = query.value(0).toInt();
+    qDebug() << "Use Times" << QString::number(r.times);
+
+    //查询最常用目标温度与次数
+    sql = QString("create view v as "
+                  "select "
+                  "target_tp as target_tp, "
+                  "count(target_tp) as cnt "
+                  "from ( "
+                  "select room_id, target_tp, event "
+                  "from log "
+                  "where room_id = '%1' and "
+                  "to_days(req_time) = to_days('%2') and "
+                  "(event = 'request' or event = 'change')) as tmp "
+                  "group by target_tp;")
+            .arg(room_id)
+            .arg(query_date.toString("yyyy-MM-dd"));
+    query.exec(sql);
+
+    sql = QString("select target_tp, cnt "
+                  "from v "
+                  "where cnt >= all(select cnt from v);");
+    query.exec(sql);
+    query.next();
+    r.freq_tg_tp = query.value(0).toDouble();
+    r.freq_t_times = query.value(1).toDouble();
+
+    sql = QString("drop view v;");
+    query.exec(sql);
+    qDebug() << "Freq Temp: " + QString::number(r.freq_tg_tp);
+    qDebug() << "Freq Temp times: " + QString::number(r.freq_t_times);
+
+    //查询最常用目标风速与次数
+    sql = QString("create view v as "
+                  "select "
+                  "wind_speed as wind_speed, "
+                  "count(wind_speed) as cnt "
+                  "from ( "
+                  "select room_id, wind_speed, event "
+                  "from log "
+                  "where room_id = '%1' and "
+                  "to_days(req_time) = to_days('%2') and "
+                  "(event = 'request' or event = 'change')) as tmp "
+                  "group by wind_speed;")
+            .arg(room_id)
+            .arg(query_date.toString("yyyy-MM-dd"));
+    query.exec(sql);
+
+    sql = QString("select wind_speed, cnt "
+                  "from v "
+                  "where cnt >= all(select cnt from v);");
+    query.exec(sql);
+    query.next();
+    r.freq_wind_speed = query.value(0).toDouble();
+    r.freq_ws_times = query.value(1).toDouble();
+    sql = QString("drop view v;");
+    query.exec(sql);
+
+    qDebug() << "Freq Wind: " + QString::number(r.freq_wind_speed);
+    qDebug() << "Freq Wind times: " + QString::number(r.freq_ws_times);
+
+    //查询达到目标次温度的次数
+    sql = QString("select count(*) from log "
+                  "where room_id = '%1' and "
+                  "to_days(req_time) = to_days('%2') and "
+                  "event = 'finished'")
+                  .arg(room_id)
+                  .arg(query_date.toString("yyyy-MM-dd"));
+    //qDebug() << sql;
+    query.exec(sql);
+    query.next();
+    r.n_finished = query.value(0).toInt();
+    qDebug() << "Finished Times " << QString::number(r.times);
+
+    //查询达到目标次温度的次数
+    sql = QString("select count(*) from log "
+                  "where room_id = '%1' and "
+                  "to_days(req_time) = to_days('%2') and "
+                  "event = 'finished'")
+                  .arg(room_id)
+                  .arg(query_date.toString("yyyy-MM-dd"));
+    qDebug() << sql;
+    query.exec(sql);
+    query.next();
+    r.n_finished = query.value(0).toInt();
+    qDebug() << "Finished Times " << QString::number(r.times);
+
+    //查询消费总量
+    sql = QString("select charge from log where room_id = '%1' and "
+                  "req_time >= all(select req_time from log "
+                  "where room_id = '%2') order by charge desc; ")
+                  .arg(room_id)
+                  .arg(room_id);
+    qDebug() << sql;
+    query.exec(sql);
+    query.next();
+    r.sum_charges = query.value(0).toInt();
+    qDebug() << "Total charges: " << QString::number(r.sum_charges);
+    return r;
 }
 
 void Server::compute()
 {
-//    int * temp_ecost;
-//    int Eprice;
+    //qDebug()<<"start compute";
+    double * temp_ecost;
+    double Eprice;
 
-//    temp_ecost=get_ecost();
-//    Eprice=get_e_price();
+    QVector<int> outofservice;
 
-//    for(int i = 0; i < MAXSERVE; i++)
-//    {
-//        AirCond cur_ac = ac[i];
-//        if(cur_ac.isOn)
-//        {
-//            int idx = cur_ac.getNowServicing();
-//            int wind_rank=room_info[i].wind_speed;
-//            room_info[idx].elec+=temp_ecost[wind_rank-1]*T;
-//            room_info[idx].charge+=temp_ecost[wind_rank-1]*T*Eprice;
-//            room_info[idx].cur_tp+=(serve_mod==0?-1:1)*(temp_ecost[wind_rank-1]*T)*cgtp_pere;
-//            if((serve_mod==0 && room_info[idx].cur_tp<=room_info[idx].target_tp)||
-//                    (serve_mod==1 && room_info[idx].cur_tp>=room_info[idx].target_tp))
-//            {
-//                send_data(tcpSocket_vec.at(idx),3,0);
-//                qDebug()<<"sleep";
-//                //todo
-//                room_info[idx].state=SLEEP;
-//                ac[i].removeShare(idx);
-//            }
-//            ac[i].getNext();
-//        }
-//        else
-//        {
-//            continue;
-//        }
-//    }
+    temp_ecost=get_ecost();
+    Eprice=get_e_price();
+
+    // 615
+    select();
+    //qDebug()<<"select ok";
+
+    for(int i = 0; i < MAXSERVE; i++)
+    {
+        // 615
+        int idx=acdevice[i];
+        if(idx != -1){
+            int wind_rank=room_info[idx].wind_speed;
+            room_info[idx].elec+=temp_ecost[wind_rank-1]*T;
+            room_info[idx].charge+=temp_ecost[wind_rank-1]*T*Eprice;
+            room_info[idx].cur_tp+=(serve_mod==0?-1:1)*(temp_ecost[wind_rank-1]*T)*cgtp_pere;
+
+            if((serve_mod==0 && room_info[idx].cur_tp<=room_info[idx].target_tp)||
+                    (serve_mod==1 && room_info[idx].cur_tp>=room_info[idx].target_tp))
+            {
+                send_data(tcpSocket_vec.at(idx), 1, "0");   //先发a
+                send_data(tcpSocket_vec.at(idx),3,0);       //再发sleep
+                qDebug()<<"sleep";
+                //todo
+                write_log(room_info[idx].room_id, "finished");      //写日志
+                room_info[idx].state=SLEEP;
+                outofservice.push_back(idx);
+            }
+        }   
+    }
+    updateQ();
+    for(QVector<int>::iterator it=outofservice.begin();it!=outofservice.end();it++)
+        removeQ(*it);
+    //qDebug()<<"update ok";
 }
 
 
@@ -500,7 +628,7 @@ int Server::search_idx(QTcpSocket *tcpSocket)     //获取tcpSocket对应的编�
 }
 
 /*获取server类私有成员每种风速下耗电量数组ecost[3]*/
-int * Server::get_ecost()
+double * Server::get_ecost()
 {
     return ecost;
 }
@@ -516,180 +644,200 @@ float Server::get_e_price()
     return eprice;
 }
 
-int Server::put(int room_id, int windspeed){
-    // 有空位直接加
+// add 615
+int Server::select(){   // 选择用户添加到acdevice中，改状态all
+
+    // 改atservice
+    int maxser=MAXSERVE;
+    for(int i=2;i>=0;i--){
+        int index=0;
+        while(index<que[i].length()&&maxser>0){
+            room* temp=que[i].at(index);
+            temp->state=AT_SERVICE;
+            maxser--;
+            index++;
+            acdevice[maxser]=temp->index;
+        }
+        if(maxser<=0) break;
+    }
+    // 找空调最低风
+    int lowlevel=4; // init out of boundary!!!!!!!!!!!!!!!!!!!!!!!!!
     for(int i=0;i<MAXSERVE;i++){
-        if(ac.at(i).isOn==false) {
-            int tmp=room_id;
-            ac[i].addShare(tmp);
-            room_info[tmp].state=AT_SERVICE;
-            return 0;
+        if(acdevice[i] != -1)
+        {
+            if(room_info[acdevice[i]].wind_speed<lowlevel)
+                lowlevel=room_info[acdevice[i]].wind_speed;
         }
     }
 
-    // 没空位找级别低的踢出
-    // find least wind speed
-    int leastACidx=0;
-    for(int i=0;i<MAXSERVE;i++){
-        if(room_info[ac[leastACidx].getNowServicing()].wind_speed>room_info[ac[i].getNowServicing()].wind_speed)
-            leastACidx=i;
-    }
-    // bigger than least wind speed
-    if(room_info[ac[leastACidx].getNowServicing()].wind_speed<windspeed){
-        int peer=-1;
-        // find substitute
-        for(int j=0;j<MAXSERVE;j++){
-            if(j!=leastACidx&&room_info[ac[j].getNowServicing()].wind_speed==room_info[ac[leastACidx].getNowServicing()].wind_speed){
-                peer=j;
-                break;
-            }
-        }
-
-        QVector<int> temp=ac[leastACidx].getShareQ();
-        if(peer!=-1){
-            for(QVector<int>::iterator it=temp.begin();it!=temp.end();it++){
-                ac[peer].addShare(*it);
-            }
-
-        }
-        else{
-            for(QVector<int>::iterator it=temp.begin();it!=temp.end();it++){
-                room_info[*it].state=WAIT;
-                request.push(&room_info[*it]);
-            }
-        }
-        ac[leastACidx].clearall();
-        ac[leastACidx].addShare(room_id);
-        return 0;
-    }
-
-
-    // 没空位找同级别的加入
-    QTime globalOldestTime = QTime::currentTime();
-    int insert_idx;
-    for(int i=0;i<MAXSERVE;i++){
-        if(room_info[ac[i].getNowServicing()].wind_speed==windspeed){
-            //查找当前队列的最晚服务时间
-            QVector<int> cur_idx = ac[i].getShareQ();
-            QTime nearestTime = QTime(0, 0);
-            for(auto i = cur_idx.begin(); i != cur_idx.end(); i++)
-            {
-                if(room_info[*i].req_time > nearestTime)
-                {
-                    nearestTime = room_info[*i].req_time;
+    if(lowlevel!=4){
+        for(int i=0;i<que[lowlevel-1].length();i++){
+            if(que[lowlevel-1].at(i)->state==AT_SERVICE||que[lowlevel-1].at(i)->state==BOOT){
+                int found=false;
+                for(int j=0;j<MAXSERVE;j++){
+                    if(que[lowlevel-1].at(i)->index==acdevice[j]){
+                        found=true;
+                        break;
+                    }
+                }
+                if(!found){
+                    que[lowlevel-1].at(i)->shedule_times++;
+                    que[lowlevel-1].at(i)->state=WAIT2;
+                    send_data(tcpSocket_vec[que[lowlevel-1].at(i)->index],4,"_"+QString::number(i)+"_2");
+                }
+                else{
+                    continue;
                 }
             }
-            if(nearestTime < globalOldestTime)
-            {
-                insert_idx = i;
-                globalOldestTime = nearestTime;
+            else{
+               que[lowlevel-1].at(i)->state=WAIT2;
+               send_data(tcpSocket_vec[que[lowlevel-1].at(i)->index],4,"_"+QString::number(i)+"_2");
             }
         }
     }
-    ac[insert_idx].addShare(room_id);
-    return 0;
-//    for(int i=0;i<MAXSERVE;i++){
-//        if(room_info[ac[i].getNowServicing()].wind_speed==windspeed){
-//            ac[i].addShare(room_id);
-//            return 0;
+
+    for(int i=0;i<lowlevel-1;i++){
+        for(int j=0;j<que[i].length();j++){
+            if(que[i].at(j)->state==WAIT2||que[i].at(j)->state==AT_SERVICE){
+                que[i].at(j)->shedule_times++;
+                que[i].at(j)->state=WAIT1;
+                send_data(tcpSocket_vec[que[i].at(j)->index],4,"_0_1");
+            }
+        }
+    }
+//    QVector<int> outqueue;    // 被换出的队列
+//    for(int i=0;i<3;i++){
+//        for(int j=0;j<que[i].length();j++){
+//            if(que[i].at(j)->state==AT_SERVICE||que[i].at(j)->state==BOOT){
+//                bool found=false;
+//                for(int k=0;k<MAXSERVE;k++){
+//                    if(acdevice[k]==que[i].at(j)->index){
+//                        found=true;
+//                        break;
+//                    }
+//                }
+//                if(!found){
+//                    if(lowlevel==que[i].at(j)->wind_speed){
+//                        que[i].at(j)->state=WAIT2;
+//                    }
+//                    else{
+//                        qDebug()<<i;
+//                        outqueue.push_back(i);
+//                        break;
+//                    }
+//                }
+//            }
 //        }
 //    }
 
-    // 全部等级高，加回等待队列中
-    request.push(&room_info[room_id]);
-    return -1;
+//    for(int i=0;i<outqueue.size();i++){
+//        int qidx=outqueue[i];
+//        for(int j=0;j<que[qidx].length();j++){
+//            que[qidx].at(j)->state=WAIT1;
+//            send_data(tcpSocket_vec[que[qidx].at(j)->index],4,"_0_1");
+//        }
+//    }
+
+//    // 设置same level轮转状态
+//    if(lowlevel!=4){
+//        for(int j=0;j<que[lowlevel-1].length();j++){
+//            if(que[lowlevel-1].at(j)->state!=AT_SERVICE) {
+//                que[lowlevel-1].at(j)->state=WAIT2;
+//                qDebug()<<QString::number(lowlevel);
+//                send_data(tcpSocket_vec[que[lowlevel-1].at(j)->index],4,"_"+QString::number(j)+"_2");
+//            }
+//        }
+//    }
+
+
+
+
+//    // 全部设置wait1状态，旧的atservice清空并发送消息
+//    for(int i=0;i<3;i++){
+//        for(int j=0;j<que[i].length();j++){
+//            if(que[i].at(j)->state==AT_SERVICE||que[i].at(j)->state==BOOT){
+//                bool found=false;
+//                qDebug()<<"testidx: "<<que[i].at(j)->index;
+//                for(int k=0;k<MAXSERVE;k++){
+//                    qDebug()<<acdevice[k];
+//                    if(acdevice[k]==que[i].at(j)->index){
+//                        found=true;
+//                        break;
+//                    }
+//                }
+//                if(!found&&que[i].at(j)->index==lowlevel){
+//                    send_data(tcpSocket_vec[que[i].at(j)->index],4,"_0_1");
+//                    que[i].at(j)->state=WAIT1;
+//                }
+//            }
+//            else{
+//                que[i].at(j)->state=WAIT1;
+//            }
+//        }
+//    }
+
+//    // 设置same level轮转状态
+//    if(lowlevel!=4){
+//        for(int j=0;j<que[lowlevel-1].length();j++){
+//            if(que[lowlevel-1].at(j)->state!=AT_SERVICE) {
+//                que[lowlevel-1].at(j)->state=WAIT2;
+//                qDebug()<<QString::number(lowlevel);
+//                send_data(tcpSocket_vec[que[lowlevel-1].at(j)->index],4,"_"+QString::number(j)+"_2");
+//            }
+//        }
+//    }
+    return 0;
 }
 
-// prior:
-// 高级RR时一定没有低级正在服务
-// 比他更高级只能单独服务,周围RR一定同级
-// 等待队列中一定低一个等级，不可能同级
-
-
-// Down若变空，只需要轮训周围是否有RR，添加到；若未找到，则从等待队列中添加
-// Up删除，之后重新插入
-int Server::changeReq(int room_index, int oldSpeed, int newSpeed){
-
-    int idx=-1;     // 空调号
+int Server::updateQ()
+{
+    int lowest=4;
     for(int i=0;i<MAXSERVE;i++){
-        if(ac[i].contains(room_index)){
-            idx=i;
+        if(acdevice[i]!=-1&&room_info[acdevice[i]].wind_speed<lowest)
+            lowest=room_info[acdevice[i]].wind_speed;
+    }
+
+    // 恢复状态，清空acdevice
+    for(int i=0;i<MAXSERVE;i++) {
+        //if(acdevice[i]!=-1)
+            //room_info[acdevice[i]].state=WAIT1;
+        acdevice[i]=-1;
+    }
+
+    for(int i=lowest-1;i<3;i++){
+        if(!que[i].empty())
+            que[i].innov();
+    }
+    return 0;
+}
+
+int Server::removeQ(int idx)
+{
+    QVector<room*>::iterator pos;
+    int rank=room_info[idx].wind_speed-1;
+    que[rank].remove(idx);
+    return 0;
+}
+
+int Server::addQ(int idx)
+{
+    return que[room_info[idx].wind_speed-1].push(&room_info[idx]);
+}
+
+int Server::changeQ(int idx,int oldwind)
+{
+    // delete old
+    for(int i=0;i<que[oldwind-1].length();i++){
+        if(que[oldwind-1].at(i)->index==idx){
+            que[oldwind-1].remove(idx);
             break;
         }
     }
-    if(idx==-1) return -1;  // not exist
-    int found=0;
-    if(oldSpeed>newSpeed){    // down
-        ac[idx].removeShare(room_index);    // 删除，放到请求队列中
-        request.push(&room_info[idx]);
-        room_info[idx].state=WAIT;
-        balanceAC();
-//        if(!ac[idx].isOn){                  // 减到空
-//            for(int i=0;i<MAXSERVE;i++){    // 调整
-//                if(ac[i].isRoundRobin){
-//                    ac[idx].addShare(ac[i].getWillServicing());
-//                    ac[i].removeShare(ac[i].getWillServicing());
-//                    break;
-//                }
-//            }
-//            // 重新添加
-//            while(put(request.top()->index,request.top()->wind_speed)!=-1){
-//                request.pop();
-//            }
-//        }
-    }
-    else{   // 增加，删除，重新添加平衡
-        ac[idx].removeShare(room_index);
-        put(room_index,newSpeed);
-       // if(!=0) qDebug()<<"Error";
-    }
-}
-
-int Server::updateRequestQueue(){
-
-    int cnt=0;
-    while(!request.empty()){
-        room* tmp=request.top();
-        request.pop();
-        int state=put(tmp->index,tmp->wind_speed);
-        if(state==-1) break;
-        cnt++;
-    }
-    return cnt;
-}
-
-int Server::balanceAC()
-{
-    // fill the blank
-    int flag=0;
-    for(int i=0;i<MAXSERVE;i++){
-        if(!ac[i].isOn){    // find largest RR to fill
-            int maxRR=0;
-            for(int j=0;j<MAXSERVE;j++){
-                if(ac[j].isRoundRobin&&ac[j].getShareQ().length()>ac[maxRR].getShareQ().length())
-                    maxRR=j;
-            }
-            if(ac[maxRR].isRoundRobin){ // found
-                int num=ac[maxRR].getShareQ().length();
-                num/=2;
-                for(int k=0;k<num;k++){
-                    int back=ac[maxRR].popback();
-                    ac[i].addShare(back);
-                    room_info[back].state=AT_SERVICE;
-                }
-            }
-        }
-
-    }
-    // 没有需要平衡尝试把请求队列中元素加入
-    if(request.empty()) return 0;   // 没有更多请求
-    while(put(request.top()->index,request.top()->wind_speed)!=-1) {
-        request.top()->state=AT_SERVICE;
-        request.pop();   // 添加请求
-    }
-
+    // add new
+    addQ(idx);
     return 0;
 }
+
 
 //遍历room_info，刷新界面信息
 void Server::refreshInfoWindow()
@@ -699,7 +847,9 @@ void Server::refreshInfoWindow()
     {
         room* curRoom = &(this->room_info[i]);
         int idx = this->idToIdx[curRoom->room_id];
+        //qDebug()<<"idx: "<<idx<<endl;
         modified[idx] = true;
+
         switch(idx)
         {
         case 0:
@@ -709,6 +859,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_0->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_0->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_0->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_0->setDisabled(false);
             break;
         case 1:
             this->ui->stateLabel_1->setText(stateToString(curRoom->state));
@@ -717,6 +868,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_1->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_1->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_1->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_1->setDisabled(false);
             break;
         case 2:
             this->ui->stateLabel_2->setText(stateToString(curRoom->state));
@@ -725,6 +877,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_2->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_2->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_2->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_2->setDisabled(false);
             break;
         case 3:
             this->ui->stateLabel_3->setText(stateToString(curRoom->state));
@@ -733,6 +886,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_3->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_3->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_3->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_3->setDisabled(false);
             break;
         case 4:
             this->ui->stateLabel_4->setText(stateToString(curRoom->state));
@@ -741,6 +895,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_4->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_4->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_4->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_4->setDisabled(false);
             break;
         case 5:
             this->ui->stateLabel_5->setText(stateToString(curRoom->state));
@@ -749,6 +904,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_5->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_5->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_5->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_5->setDisabled(false);
             break;
         case 6:
             this->ui->stateLabel_6->setText(stateToString(curRoom->state));
@@ -757,6 +913,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_6->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_6->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_6->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_6->setDisabled(false);
             break;
         case 7:
             this->ui->stateLabel_7->setText(stateToString(curRoom->state));
@@ -765,6 +922,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_7->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_7->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_7->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_7->setDisabled(false);
             break;
         case 8:
             this->ui->stateLabel_8->setText(stateToString(curRoom->state));
@@ -773,6 +931,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_8->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_8->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_8->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_8->setDisabled(false);
             break;
         case 9:
             this->ui->stateLabel_9->setText(stateToString(curRoom->state));
@@ -781,6 +940,7 @@ void Server::refreshInfoWindow()
             this->ui->elecLabel_9->setText(QString::number(curRoom->elec, 'f', 2));
             this->ui->chargeLabel_9->setText(QString::number(curRoom->charge, 'f', 2));
             this->ui->fanLabel_9->setText(fanToString(curRoom->wind_speed));
+            this->ui->kick_9->setDisabled(false);
             break;
         default:
             break;
@@ -799,6 +959,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_0->setText("");
                 this->ui->chargeLabel_0->setText("");
                 this->ui->fanLabel_0->setText("");
+                this->ui->kick_0->setDisabled(true);
                 break;
             case 1:
                 this->ui->stateLabel_1->setText("未连接");
@@ -807,6 +968,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_1->setText("");
                 this->ui->chargeLabel_1->setText("");
                 this->ui->fanLabel_1->setText("");
+                this->ui->kick_1->setDisabled(true);
                 break;
             case 2:
                 this->ui->stateLabel_2->setText("未连接");
@@ -815,6 +977,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_2->setText("");
                 this->ui->chargeLabel_2->setText("");
                 this->ui->fanLabel_2->setText("");
+                this->ui->kick_2->setDisabled(true);
                 break;
             case 3:
                 this->ui->stateLabel_3->setText("未连接");
@@ -823,6 +986,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_3->setText("");
                 this->ui->chargeLabel_3->setText("");
                 this->ui->fanLabel_3->setText("");
+                this->ui->kick_3->setDisabled(true);
                 break;
             case 4:
                 this->ui->stateLabel_4->setText("未连接");
@@ -831,6 +995,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_4->setText("");
                 this->ui->chargeLabel_4->setText("");
                 this->ui->fanLabel_4->setText("");
+                this->ui->kick_4->setDisabled(true);
                 break;
             case 5:
                 this->ui->stateLabel_5->setText("未连接");
@@ -839,6 +1004,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_5->setText("");
                 this->ui->chargeLabel_5->setText("");
                 this->ui->fanLabel_5->setText("");
+                this->ui->kick_5->setDisabled(true);
                 break;
             case 6:
                 this->ui->stateLabel_6->setText("未连接");
@@ -847,6 +1013,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_6->setText("");
                 this->ui->chargeLabel_6->setText("");
                 this->ui->fanLabel_6->setText("");
+                this->ui->kick_6->setDisabled(true);
                 break;
             case 7:
                 this->ui->stateLabel_7->setText("未连接");
@@ -855,6 +1022,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_7->setText("");
                 this->ui->chargeLabel_7->setText("");
                 this->ui->fanLabel_7->setText("");
+                this->ui->kick_7->setDisabled(true);
                 break;
            case 8:
                 this->ui->stateLabel_8->setText("未连接");
@@ -863,6 +1031,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_8->setText("");
                 this->ui->chargeLabel_8->setText("");
                 this->ui->fanLabel_8->setText("");
+                this->ui->kick_8->setDisabled(true);
                 break;
             case 9:
                 this->ui->stateLabel_9->setText("未连接");
@@ -871,6 +1040,7 @@ void Server::refreshInfoWindow()
                 this->ui->elecLabel_9->setText("");
                 this->ui->chargeLabel_9->setText("");
                 this->ui->fanLabel_9->setText("");
+                this->ui->kick_9->setDisabled(true);
                 break;
              default:
                 break;
@@ -921,5 +1091,338 @@ QString Server::stateToString(ClientState s)
     {
         return QString("等待中");
     }
+    else if(s == WAIT1)
+    {
+        return QString("等待中");
+    }
+    else if(s == WAIT2)
+    {
+        return QString("轮转中");
+    }
+
 }
 
+void Server::on_pushButton_clicked()
+{
+    QString room_id = this->ui->rp_id->currentText();
+    QDateTime rep_date = this->ui->rp_date->dateTime();
+    rprow rp = this->get_rprow(room_id, rep_date);
+    int idx = -1;
+    for(int i = room_info.length() - 1; i >= 0; i--)
+    {
+        if(room_info[i].room_id == room_id)
+        {
+            idx = i;
+            break;
+        }
+    }
+    int n_schedules = (idx == -1? 0: room_info[idx].shedule_times);
+    QString display = QString("房间: %1 \n"
+                              "使用次数: %2 \n"
+                              "最常用目标温度: %3（%4次）\n"
+                              "最常用风速: %5 (%6次)\n"
+                              "完成次数: %7 \n"
+                              "调度次数： %8 \n"
+                              "总费用: %9 \n")
+                        .arg(room_id)
+                        .arg(QString::number(rp.times))
+                        .arg(QString::number(rp.freq_tg_tp)).arg(QString::number(rp.freq_t_times))
+                        .arg(this->fanToString(rp.freq_wind_speed)).arg(QString::number(rp.freq_ws_times))
+                        .arg(QString::number(rp.n_finished))
+                        .arg(QString::number(n_schedules))
+                        .arg(QString::number(rp.sum_charges, 'g', 2));
+    int ret = QMessageBox::information(this, "报表", display);
+}
+
+// 615
+
+room *Acque::top()
+{
+    return list.front();
+}
+
+int Acque::push(room *r)
+{
+    if(r==NULL) return -1;
+    list.push_back(r);
+    return 0;
+}
+
+int Acque::pop()
+{
+    QVector<room*>::iterator temp=list.begin();
+    list.erase(list.begin());
+    return 0;
+}
+
+room *Acque::get(int room_idx)
+{
+    room* res=NULL;
+    for(QVector<room*>::iterator it=list.begin();it!=list.end();it++){
+        if((*it)->index==room_idx){
+            res=*it;
+            break;
+        }
+    }
+    return res;
+}
+
+bool Acque::empty()
+{
+    return list.empty();
+}
+
+int Acque::length()
+{
+    return list.size();
+}
+
+int Acque::cycle()
+{
+    if(list.empty()){
+        return -1;
+    }
+    room * temp=list.front();
+    QVector<room*>::iterator t=list.begin();
+    list.erase(t);
+    list.push_back(temp);
+    return 0;
+}
+
+room *Acque::at(int idx)
+{
+    return list.at(idx);
+}
+
+int Acque::getcurslot()
+{
+    return cnt;
+}
+
+int Acque::getslot()
+{
+    return timeslot;
+}
+
+int Acque::setslot(int t)
+{
+    timeslot=t;
+    cnt=t;
+    return 0;
+}
+
+int Acque::innov()
+{
+    cnt--;
+    if(cnt==0){
+        cnt=timeslot;
+        cycle();
+    }
+    return 0;
+}
+
+int Acque::remove(int idx)
+{
+    int tok=0;
+    QVector<room*>::iterator pos;
+    if(list.empty()) return 0;
+    for(QVector<room* >::iterator it=list.begin();it!=list.end();it++){
+        if((*it)->index==idx){
+            pos=it;
+            break;
+        }
+    }
+
+    list.erase(pos);
+    return 0;
+}
+
+
+void Server::checkout_and_reset(QString room_id)
+{
+    for(int i = room_info.length() - 1; i >= 0; i--)
+    {
+        if(room_info[i].room_id == room_id)     //清空
+        {
+            this->room_info[i].charge = 0.;
+            this->room_info[i].elec = 0.;
+            this->target_t = 0;
+            this->room_info[i].state = CLOSE;
+
+            removeQ(i);
+
+            send_data(tcpSocket_vec[i], 2, "1");  //退房
+            this->write_log(room_id, "checkout");
+        }
+    }
+}
+
+
+//退房
+void Server::on_kick_0_clicked()
+{
+    checkout_and_reset("306C");
+}
+
+void Server::on_kick_1_clicked()
+{
+    checkout_and_reset("306D");
+}
+
+void Server::on_kick_2_clicked()
+{
+    checkout_and_reset("307C");
+}
+
+void Server::on_kick_3_clicked()
+{
+    checkout_and_reset("307D");
+}
+
+void Server::on_kick_4_clicked()
+{
+    checkout_and_reset("308C");
+}
+
+void Server::on_kick_5_clicked()
+{
+    checkout_and_reset("308D");
+}
+
+void Server::on_kick_6_clicked()
+{
+    checkout_and_reset("309C");
+}
+
+void Server::on_kick_7_clicked()
+{
+    checkout_and_reset("309D");
+}
+
+void Server::on_kick_8_clicked()
+{
+    checkout_and_reset("310C");
+}
+
+void Server::on_kick_9_clicked()
+{
+    checkout_and_reset("310D");
+}
+
+void Server::on_pushButton_2_clicked()
+{
+    this->rpWindow->clear();
+    this->rpWindow->show();
+}
+
+void Server::answer_and_show(QString room_id, QDateTime s, QDateTime e)
+{
+    QVector<dbrow> answer = query(room_id, s, e);
+    this->rpWindow->load_answer(answer);
+}
+
+//void Server::clear_window(QString room_id)
+//{
+//    int i = this->idToIdx[room_id];
+//    switch(i)
+//    {
+//    case 0:
+//        this->ui->stateLabel_0->setText("未连接");
+//        this->ui->curTmpLabel_0->setText("");
+//        this->ui->tgTmpLabel_0->setText("");
+//        this->ui->elecLabel_0->setText("");
+//        this->ui->chargeLabel_0->setText("");
+//        this->ui->fanLabel_0->setText("");
+//        this->ui->kick_0->setDisabled(true);
+//        break;
+//    case 1:
+//        this->ui->stateLabel_1->setText("未连接");
+//        this->ui->curTmpLabel_1->setText("");
+//        this->ui->tgTmpLabel_1->setText("");
+//        this->ui->elecLabel_1->setText("");
+//        this->ui->chargeLabel_1->setText("");
+//        this->ui->fanLabel_1->setText("");
+//        this->ui->kick_1->setDisabled(true);
+//        break;
+//    case 2:
+//        this->ui->stateLabel_2->setText("未连接");
+//        this->ui->curTmpLabel_2->setText("");
+//        this->ui->tgTmpLabel_2->setText("");
+//        this->ui->elecLabel_2->setText("");
+//        this->ui->chargeLabel_2->setText("");
+//        this->ui->fanLabel_2->setText("");
+//        this->ui->kick_2->setDisabled(true);
+//        break;
+//    case 3:
+//        this->ui->stateLabel_3->setText("未连接");
+//        this->ui->curTmpLabel_3->setText("");
+//        this->ui->tgTmpLabel_3->setText("");
+//        this->ui->elecLabel_3->setText("");
+//        this->ui->chargeLabel_3->setText("");
+//        this->ui->fanLabel_3->setText("");
+//        this->ui->kick_3->setDisabled(true);
+//        break;
+//    case 4:
+//        this->ui->stateLabel_4->setText("未连接");
+//        this->ui->curTmpLabel_4->setText("");
+//        this->ui->tgTmpLabel_4->setText("");
+//        this->ui->elecLabel_4->setText("");
+//        this->ui->chargeLabel_4->setText("");
+//        this->ui->fanLabel_4->setText("");
+//        this->ui->kick_4->setDisabled(true);
+//        break;
+//    case 5:
+//        this->ui->curTmpLabel_5->setText("");
+//        this->ui->tgTmpLabel_5->setText("");
+//        this->ui->elecLabel_5->setText("");
+//        this->ui->chargeLabel_5->setText("");
+//        this->ui->fanLabel_5->setText("");
+//        this->ui->kick_5->setDisabled(true);
+//        break;
+//    case 6:
+//        this->ui->curTmpLabel_6->setText("");
+//        this->ui->tgTmpLabel_6->setText("");
+//        this->ui->elecLabel_6->setText("");
+//        this->ui->chargeLabel_6->setText("");
+//        this->ui->fanLabel_6->setText("");
+//        this->ui->kick_6->setDisabled(true);
+//        break;
+//    case 7:
+//        this->ui->curTmpLabel_7->setText("");
+//        this->ui->tgTmpLabel_7->setText("");
+//        this->ui->elecLabel_7->setText("");
+//        this->ui->chargeLabel_7->setText("");
+//        this->ui->fanLabel_7->setText("");
+//        this->ui->kick_7->setDisabled(true);
+//        break;
+//   case 8:
+//        this->ui->curTmpLabel_8->setText("");
+//        this->ui->tgTmpLabel_8->setText("");
+//        this->ui->elecLabel_8->setText("");
+//        this->ui->chargeLabel_8->setText("");
+//        this->ui->fanLabel_8->setText("");
+//        this->ui->kick_8->setDisabled(true);
+//        break;
+//    case 9:
+//        this->ui->curTmpLabel_9->setText("");
+//        this->ui->tgTmpLabel_9->setText("");
+//        this->ui->elecLabel_9->setText("");
+//        this->ui->chargeLabel_9->setText("");
+//        this->ui->fanLabel_9->setText("");
+//        this->ui->kick_9->setDisabled(true);
+//        break;
+//     default:
+//        break;
+//    }
+//}
+
+int Acque::disp()
+{
+//    QString res="";
+//    if(!list.empty()) res+=(QString::number(list[0]->wind_speed)+": ");
+//    for(int i=0;i<list.size();i++){
+//        res+=(QString::number(list.at(i)->index)+"-");
+//    }
+//    if(res!="") qDebug() << res;
+//    return 0;
+}

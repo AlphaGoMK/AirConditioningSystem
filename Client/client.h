@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <QString>
 #include <qtimer.h>
+#include "initwindow.h"
 
 #pragma comment(lib,"ws2_32.lib")
 
@@ -21,7 +22,9 @@ enum ClientState
     CLOSE,         //关机
     AT_SERVICE,    //正在被服务
     SLEEP,         //服务完毕
-    WAIT           //等待
+    WAIT,           //等待
+    WAIT1,         //等待
+    WAIT2          //轮转
 };
 
 enum WorkMode
@@ -38,7 +41,7 @@ public:
     explicit Client(QWidget *parent = 0);
     ~Client();
     Client(int room_id, QWidget *parent = 0);
-
+    InitWindow *initWindow;
 signals:
     void sigModStatus();
 
@@ -53,10 +56,13 @@ private slots:
 
 
     void on_pushButton_6_clicked();
-    void on_pushButton_clicked();
+//    void on_pushButton_clicked();
 
 
     void on_pushButton_2_clicked();
+    void set_env_tp(int env_tp);
+    void on_up_clicked();
+
 
 private:
     Ui::Client *ui;
@@ -73,7 +79,7 @@ private:
     double fade_rate;
 
     ClientState state;      //状态
-    float target_tp;        //目标温度
+    int target_tp;        //目标温度
     int wind_speed;       //风速 123低中高
 
     float elec;             //耗电量
@@ -92,8 +98,8 @@ private:
     int init();
     int close_connect();
     void refresh_screen(); //刷新显示
+    void reset();   //退房后重新设置
 
 
 };
-
 #endif // CLIENT_H

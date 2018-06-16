@@ -14,10 +14,13 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp\
-    client.cpp
+    client.cpp \
+    initwindow.cpp
 
 HEADERS  += \
-    client.h
+    client.h \
+    initwindow.h
 
 FORMS    += widget.ui \
-    client.ui
+    client.ui \
+    initwindow.ui

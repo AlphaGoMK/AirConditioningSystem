@@ -5,17 +5,29 @@
 #include <QAbstractSocket>
 #include <time.h>
 #include <QTime>
+#include <QDateTime>
 #include <vector>
 #include <fstream>
 #include <QVector>
 #include <QMap>
 #include <queue>
+#include <QSqlError>
+#include <Qtsql/QSqlDatabase>
+#include <Qtsql/QSqlQuery>
+#include <QSqlRecord>
+#include <QtSql>
+#include "aircond.h"
+#include <QStack>
+
+#define DEAFULTTIMESLOTS 3
+#define _MAXSERVE 2
 
 namespace Ui {
 class Server;
 }
 
 class QTcpSocket;
+class checkout;
 
 enum ClientState
 {
@@ -23,8 +35,9 @@ enum ClientState
     CLOSE,         //关机
     AT_SERVICE,    //正在被服务
     SLEEP,         //服务完毕
-    WAIT           //等待
-
+    WAIT,
+    WAIT1,         //优先级等待
+    WAIT2          //轮转等待
 };
 
 typedef struct Room{
@@ -43,45 +56,90 @@ typedef struct Room{
     float charge;           //累计费用   
     double cur_tp;          //当前数据
     float change_tp;        //3s温度变化（有正负）
-    float  price_3s;        //3s内产生的费用（我也不知道为什么设这个傻逼值）
+    float  price_3s;        //3s内产生的费用（我也不知道为什么设这个傻逼值
+    int open_times;
+    int shedule_times;      //调度次数
 
     QTcpSocket* tcpSocket;   // 通信用socket
 
     // ADD
-    QTime req_time;       //最近请求时间
+//    QTime req_time;       //最近请求时间
+    QDateTime req_time;
     int index;              //在room_info中的序号
 
 } room;
 
-class QTcpServer;
+struct dbrow {
+    QString room_id;
+    QDateTime req_time;
+    QDateTime cur_time;
+    QString event;
+    float cur_tp;
+    float target_tp;
+    int wind_speed;
+    float elec;
+    float charge;
+};
 
-class AirCond{
-private:
-    QVector<int> shareQ;    // room_info中的序号
-    int tSlot;
-    int current;    // local index
-    int timeCnt;    // round robin current service count
+struct rprow
+{
+    QString room_id;     //房间号
+    int times;           //使用次数
+    double freq_tg_tp;   //最常用目标温度
+    int freq_t_times;    //最常用目标温度使用次数
+    int freq_wind_speed; //最常用风速
+    int freq_ws_times;   //最常用风速使用次数
+    int n_finished;      //完成次数
+    double sum_charges;  //总费用
+};
 
-public:
-    AirCond(int slot);
-    bool isRoundRobin;
-    bool isOn;
-    int getNext();
-    int addShare(int id);
-    int removeShare(int id);        // remove by id(id: index in room_info. idx: index in shareQ
-    int removeShareIdx(int idx);    // remove by index return id
-    int getNowServicing();          // index in room_info
-    int getWillServicing();         // return id
-    int popback();
-    bool contains(int id);
 
-    QVector<int> getShareQ();
-    int clearall(){
-        shareQ.clear();
-        return 0;
+struct compare {
+    bool operator () (const room* r1, const room* r2) const {
+        if(r1->wind_speed==r2->wind_speed){
+            return r1->req_time>r2->req_time;
+        }
+        else return r1->wind_speed<r2->wind_speed;
     }
 };
 
+
+// 615
+class Acque{
+private:
+    int cnt;
+    int timeslot;
+    QVector<room *> list;
+public:
+    Acque(int ts){
+        cnt=ts;
+        timeslot=ts;
+        list.empty();
+    }
+    Acque()
+    {
+        cnt=DEAFULTTIMESLOTS;
+        timeslot=DEAFULTTIMESLOTS;
+        list.empty();
+    }
+    room* top();
+    int push(room* r);
+    int pop();
+    room* get(int room_idx);
+    bool empty();
+    int length();
+    int cycle();
+    room* at(int idx);
+    int getcurslot();
+    int getslot();
+    int setslot(int t);
+    int innov();
+    int remove(int idx);
+    int disp();
+};
+
+
+class QTcpServer;
 
 class Server : public QDialog
 {
@@ -90,15 +148,18 @@ class Server : public QDialog
 public:
     explicit Server(QWidget *parent = 0);
     ~Server();
-    void write_log();    //接受compute()的数据记入数据库
+    void write_log(QString room_id, QString event);
     void compute();      //计算各房间温度、耗电量、费用并返回。
-    //check_status(); //
     void findtarget(QString roomid);
-//    void init_room(int i);
     void init_room(QTcpSocket* socket);
     float get_e_price();
-    int * get_ecost();
+    double * get_ecost();
     QVector<room>* get_room_arr();
+
+    //数据库相关
+    QVector<dbrow> query(QString room_id, QDateTime start, QDateTime end);
+    QVector<rprow> get_rp(QString room_id, QDateTime query_date);
+    rprow get_rprow(QString room_id, QDateTime query_date);
 
 
 private:
@@ -122,7 +183,7 @@ private:
     QString message;
     quint16 blockSize;
 
-    int     ecost[3];   //    三种风速下的单位时间耗电量（度/分钟）
+    double  ecost[3];   //    三种风速下的单位时间耗电量（度/分钟）
     float   eprice;     //    每度电的价格（元/度）（用来计算三种风速的价格）
     float   cgtp_pere;  //    单位电量温度下降幅度（摄氏度/度）（用来计算三种风速的温度下降幅度）
     int     serve_mod;  //    空调系统工作模式（0-制冷、1-制热）
@@ -135,37 +196,56 @@ private:
     room*   target_x;
     room*   target_t;
     room*   target_w;
-    //get_list();     //读取详单
+
+    // database
+    QSqlDatabase db;
 
     QTimer* send_back_timer;     //用于定时回送数据 张尚之添加
     QTimer* cmp_log_timer;     //用于定时计算与写回数据 张尚之添加
     int search_idx(QTcpSocket* tcpSocket);
 
-    QVector<AirCond> ac;        // AC entities
+    // 615
 
-    std::priority_queue<room*> request;
-    int addReq(int room_id,int windspeed);  // return 0-OK,-1-DELAY
-    int put(int room_id,int windspeed);  // return 0-OK,-1-DELAY
-    int changeReq(int room_id,int oldSpeed,int newSpeed);
-    int updateRequestQueue();           // update req Q, return update amount
-    int balanceAC();
+    int acdevice[100];    // 空调机
+    Acque que[3];       // 空调等待队列
+    int select();
+    int updateQ();
+    int changeQ(int idx,int oldwind);// 已经修改过风速
+    int removeQ(int idx);// idx, index of room_info
+    int addQ(int idx);
+
     QMap<QString, int> idToIdx;
+
+    void checkout_and_reset(QString room_id);        //退房
+    checkout *rpWindow;
+    void clear_window(QString room_id);
 
 private slots:
     void recieve_request();        //监听端口，处理接收到的请求
-//    void send_data(int mod, QString start_id);       //发送数据
-    void send_data(QTcpSocket* tcpSocket, int mod, QString start_id);       //发送数据, 张尚之改
+    void send_data(QTcpSocket* tcpSocket, int mod, QString extra);       //发送数据, 张尚之改
     void displayError(QAbstractSocket::SocketError);
     void connecting();
 
     void cyclePrint();
-
 
     void cycleSendBack();        //周期性回送消息 张尚之添加
     void cycleCompute();         //周期性计算数据 张尚之加
     void refreshInfoWindow();    //周期性刷新窗口数据
     QString stateToString(ClientState s);
     QString fanToString(int f);
+    void on_pushButton_clicked();
+    void on_kick_0_clicked();
+    void on_kick_1_clicked();
+    void on_kick_2_clicked();
+    void on_kick_3_clicked();
+    void on_kick_4_clicked();
+    void on_kick_5_clicked();
+    void on_kick_6_clicked();
+    void on_kick_7_clicked();
+    void on_kick_8_clicked();
+    void on_kick_9_clicked();
+    void on_pushButton_2_clicked();
+    void answer_and_show(QString, QDateTime, QDateTime);
 };
 
 #endif // SERVER_H

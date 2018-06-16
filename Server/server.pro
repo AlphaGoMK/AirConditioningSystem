@@ -6,7 +6,8 @@
 
 QT       += core gui
 QT       += network
-
+QT       += sql core gui\
+           network
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = server
@@ -26,10 +27,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-    server.cpp
+    server.cpp \
+    checkout.cpp
 
 HEADERS += \
-    server.h
+    server.h \
+    checkout.h
 
 FORMS += \
-    server.ui
+    server.ui \
+    checkout.ui

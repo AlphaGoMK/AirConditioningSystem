@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>checkout</class>
+ <widget class="QDialog" name="checkout">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>981</width>
+    <height>688</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <widget class="QTableWidget" name="tableWidget">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>130</y>
+     <width>921</width>
+     <height>491</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="search">
+   <property name="geometry">
+    <rect>
+     <x>750</x>
+     <y>50</y>
+     <width>91</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>查询</string>
+   </property>
+  </widget>
+  <widget class="QComboBox" name="comboBox">
+   <property name="geometry">
+    <rect>
+     <x>70</x>
+     <y>50</y>
+     <width>171</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Algerian</family>
+     <pointsize>14</pointsize>
+     <weight>50</weight>
+     <italic>false</italic>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">color:rgb(3, 3, 3);
+background-color: rgb(255, 255, 255);
+font: 14pt &quot;Algerian&quot;;
+</string>
+   </property>
+   <item>
+    <property name="text">
+     <string>请选择房间号</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>306C</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>306D</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>307C</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>307D</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>308C</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>308D</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>309C</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>309D</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>310C</string>
+    </property>
+   </item>
+   <item>
+    <property name="text">
+     <string>310D</string>
+    </property>
+   </item>
+  </widget>
+  <widget class="QDateTimeEdit" name="starttime">
+   <property name="geometry">
+    <rect>
+     <x>480</x>
+     <y>30</y>
+     <width>194</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QDateTimeEdit" name="endtime">
+   <property name="geometry">
+    <rect>
+     <x>480</x>
+     <y>80</y>
+     <width>194</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>370</x>
+     <y>40</y>
+     <width>72</width>
+     <height>15</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>起始时间</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_2">
+   <property name="geometry">
+    <rect>
+     <x>370</x>
+     <y>90</y>
+     <width>72</width>
+     <height>15</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>终止时间</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

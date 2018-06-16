@@ -19,7 +19,7 @@
      <x>10</x>
      <y>10</y>
      <width>861</width>
-     <height>511</height>
+     <height>541</height>
     </rect>
    </property>
    <property name="title">
@@ -31,7 +31,7 @@
       <x>30</x>
       <y>30</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -211,6 +211,19 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_0">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_1">
     <property name="geometry">
@@ -218,7 +231,7 @@
       <x>190</x>
       <y>30</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -398,6 +411,19 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_1">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_2">
     <property name="geometry">
@@ -405,7 +431,7 @@
       <x>350</x>
       <y>30</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -585,6 +611,19 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_2">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_3">
     <property name="geometry">
@@ -592,7 +631,7 @@
       <x>510</x>
       <y>30</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -772,6 +811,19 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_3">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_4">
     <property name="geometry">
@@ -779,7 +831,7 @@
       <x>670</x>
       <y>30</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -959,14 +1011,27 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_4">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_7">
     <property name="geometry">
      <rect>
       <x>350</x>
-      <y>260</y>
+      <y>280</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -1146,14 +1211,27 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_7">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_9">
     <property name="geometry">
      <rect>
       <x>670</x>
-      <y>260</y>
+      <y>280</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -1333,14 +1411,27 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_9">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_6">
     <property name="geometry">
      <rect>
       <x>190</x>
-      <y>260</y>
+      <y>280</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -1520,14 +1611,27 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_6">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_5">
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>260</y>
+      <y>280</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -1707,14 +1811,27 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_5">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>23</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_8">
     <property name="geometry">
      <rect>
       <x>510</x>
-      <y>260</y>
+      <y>280</y>
       <width>151</width>
-      <height>221</height>
+      <height>241</height>
      </rect>
     </property>
     <property name="title">
@@ -1894,6 +2011,144 @@
       <string>TextLabel</string>
      </property>
     </widget>
+    <widget class="QPushButton" name="kick_8">
+     <property name="geometry">
+      <rect>
+       <x>40</x>
+       <y>200</y>
+       <width>75</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>退房</string>
+     </property>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>560</y>
+     <width>291</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string/>
+   </property>
+   <widget class="QComboBox" name="rp_id">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>10</y>
+      <width>69</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
+    <item>
+     <property name="text">
+      <string>306C</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>306D</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>307C</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>307D</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>308C</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>308D</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>309C</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>309D</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>310C</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>310D</string>
+     </property>
+    </item>
+   </widget>
+   <widget class="QDateEdit" name="rp_date">
+    <property name="geometry">
+     <rect>
+      <x>89</x>
+      <y>10</y>
+      <width>91</width>
+      <height>22</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton">
+    <property name="geometry">
+     <rect>
+      <x>200</x>
+      <y>10</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>查询报表</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_10">
+   <property name="geometry">
+    <rect>
+     <x>320</x>
+     <y>560</y>
+     <width>101</width>
+     <height>41</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string/>
+   </property>
+   <widget class="QPushButton" name="pushButton_2">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>10</y>
+      <width>75</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>详单查询</string>
+    </property>
    </widget>
   </widget>
  </widget>
