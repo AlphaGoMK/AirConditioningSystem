@@ -121,11 +121,16 @@ Server::Server(QWidget *parent) :
 
 //    send_back_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
 //    send_back_timer->start(1000);                            //定时回送事件，张尚之加
-//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(cycleSendBack())); //定时回送事件，张尚之加
+//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(refreshInfoWindow())); //定时回送事件，张尚之加
 
     cmp_log_timer = new QTimer();                          //新建定时回送计时器, 张尚之加
     cmp_log_timer->start(slot * 1000);                            //定时回送事件，张尚之加
     connect(cmp_log_timer, SIGNAL(timeout()), this, SLOT(cycleCompute())); //定时回送事件，张尚之加
+
+//    send_back_timer = new QTimer();
+//    send_back_timer->start(60000);
+//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(cycleSendBack()));
+//    connect(send_back_timer, SIGNAL(timeout()), this, SLOT(refreshInfoWindow()));
 
     this->idToIdx["306C"] = 0;
     this->idToIdx["306D"] = 1;
@@ -231,8 +236,10 @@ void Server::send_data(QTcpSocket* tcpSocket, int mod, QString extra)
             x = "start";
             x += "_" + extra;     //start_id是什么？
             x += "_" + QString::number(serve_mod);
-            x += "_" + QString::number(t_low,'f',2) + "-" + QString::number(t_high,'f',2);
-            x += "_" + QString::number(tp_range,'f',2);
+//            x += "_" + QString::number(t_low,'f',2) + "-" + QString::number(t_high,'f',2);
+//            x += "_" + QString::number(tp_range,'f',2);
+            x += "_" + QString::number((int)t_low) + "-" + QString::number((int)t_high);
+            x += "_" + QString::number((int)tp_range);
             break;
         case 1:
         // 1-服务过程中回应：            a_房间号_当前房间温度_累计计费_timenow_目标温度_风速_温度变化_单价_累计电量
@@ -408,6 +415,7 @@ void Server::recieve_request()
             send_data(tcpSocket, 2, 0);
         }
     }
+    cycleSendBack();
 }
 
 void Server::displayError(QAbstractSocket::SocketError)
@@ -725,6 +733,7 @@ int Server::select(){   // 选择用户添加到acdevice中，改状态all
                     que[lowlevel-1].at(i)->shedule_times++;
                     que[lowlevel-1].at(i)->state=WAIT2;
                     send_data(tcpSocket_vec[que[lowlevel-1].at(i)->index],4,"_"+QString::number(i)+"_2");
+                    write_log(que[lowlevel-1].at(i)->room_id, "WAIT2");
                 }
                 else{
                     continue;
@@ -733,16 +742,18 @@ int Server::select(){   // 选择用户添加到acdevice中，改状态all
             else{
                que[lowlevel-1].at(i)->state=WAIT2;
                send_data(tcpSocket_vec[que[lowlevel-1].at(i)->index],4,"_"+QString::number(i)+"_2");
+                write_log(que[lowlevel-1].at(i)->room_id, "WAIT2");
             }
         }
     }
 
     for(int i=0;i<lowlevel-1;i++){
         for(int j=0;j<que[i].length();j++){
-            if(que[i].at(j)->state==WAIT2||que[i].at(j)->state==AT_SERVICE){
+            if(que[i].at(j)->state==WAIT2||que[i].at(j)->state==AT_SERVICE||que[i].at(j)->state==BOOT){
                 que[i].at(j)->shedule_times++;
                 que[i].at(j)->state=WAIT1;
                 send_data(tcpSocket_vec[que[i].at(j)->index],4,"_0_1");
+                write_log(que[lowlevel-1].at(i)->room_id, "WAIT1");
             }
         }
     }

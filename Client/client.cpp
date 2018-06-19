@@ -6,6 +6,8 @@
 #include <QMessageBox>
 #include "initwindow.h"
 
+int T = 60000;
+
 Client::Client(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::Client)
@@ -56,9 +58,6 @@ Client::Client(QWidget *parent) :
     fade_timer=new QTimer();
     connect(fade_timer,SIGNAL(timeout()),this,SLOT(fade()));
     connect(initWindow, SIGNAL(get_env_tp(int)), this, SLOT(set_env_tp(int)));
-
-
-
 
     this->update();
 }
@@ -156,7 +155,7 @@ void Client::parse_data()
         }
         else if(res[0] == "a")
         {
-            this->state = AT_SERVICE;
+
             if(this->target_tp == 0)     //开机后获取到缺省值
             {
                 this->ui->get_tg_tp->display(res[5].toDouble());
@@ -178,19 +177,20 @@ void Client::parse_data()
                 QString msg="c_"+room_id+"_"+QString::number(cur_tp)+"_"+QString::number(target_tp)+"_"+QString::number(wind_speed);
                 send_to_server(msg);
             }
+            this->state = AT_SERVICE;
             fade_timer->stop();       //空调开始工作，关闭回温函数
         }
         else if(res[0] == "sleep")
         {
             // 开始回温计时器
             if(!fade_timer->isActive())
-                fade_timer->start(1000);
+                fade_timer->start(T);
             this->state=SLEEP;
         }
         else if(res[0] == "wait")
         {
             if(!fade_timer->isActive())
-                fade_timer->start(1000);
+                fade_timer->start(T);
             qDebug() << res[3];
             if(res[3] == "1")
                 this->state = WAIT1;
@@ -200,12 +200,14 @@ void Client::parse_data()
         else if(res[0] == "close")
         {
             this->state = BOOT;
-            if(!fade_timer->isActive())
-                fade_timer->start(1000);
+//            if(!fade_timer->isActive())
+//                fade_timer->start(T);
             if(res[2] == "1") //服务器要求退房
             {
                 this->reset();
             }
+            this->cur_tp = env_tp;
+            this->fade_timer->stop();
         }
         this->refresh_screen();
     }
@@ -306,7 +308,7 @@ void Client::reset()
     this->state =  BOOT;
     this->ui->up->setDisabled(true);
     this->ui->pushButton_2->setDisabled(true);
-    this->fade_timer->start(1000);    //开启回温
+    this->fade_timer->start(T);    //开启回温
 }
 
 int Client::send_to_server(QString msg){
@@ -349,7 +351,6 @@ void Client::on_pushButton_5_clicked()
 void Client::on_pushButton_6_clicked()
 {
     QString msg="close_"+room_id;
-
     send_to_server(msg);
 }
 
